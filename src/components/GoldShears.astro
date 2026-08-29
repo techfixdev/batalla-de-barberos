@@ -1,5 +1,4 @@
 ---
-import { Image } from 'astro:assets';
 import upperShear from '../assets/barber-battle/gold-shears-upper.png';
 import lowerShear from '../assets/barber-battle/gold-shears-lower.png';
 
@@ -18,8 +17,8 @@ const { variant = 'compact', class: className } = Astro.props;
 >
   <span class="gold-shears__float">
     <span class="gold-shears__pair">
-      <Image class="gold-shears__half gold-shears__half--upper" src={upperShear} alt="" width={1254} height={1254} loading="eager" decoding="async" />
-      <Image class="gold-shears__half gold-shears__half--lower" src={lowerShear} alt="" width={1254} height={1254} loading="eager" decoding="async" />
+      <img class="gold-shears__half gold-shears__half--upper" src={upperShear.src} alt="" width="1254" height="1254" loading="eager" decoding="async" />
+      <img class="gold-shears__half gold-shears__half--lower" src={lowerShear.src} alt="" width="1254" height="1254" loading="eager" decoding="async" />
     </span>
   </span>
 </span>
