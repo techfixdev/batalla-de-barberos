@@ -228,9 +228,12 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
   .character-plane img { top: 1.2rem; height: 57%; }
   .character-left { --fighter-rest-x: calc(-50% - clamp(.65rem, 4vw, 1.25rem)); }
   .character-right { --fighter-rest-x: calc(-50% + clamp(.65rem, 4vw, 1.25rem)); }
-  .character-left img { transform: translateX(var(--fighter-rest-x)); animation-name: fighter-left-idle-mobile; }
-  .character-right img { transform: translateX(var(--fighter-rest-x)); animation-name: fighter-right-idle-mobile; }
+  .character-left img { transform: translateX(var(--fighter-rest-x)); animation-name: fighter-left-idle-mobile; animation-duration: 5.2s; }
+  .character-right img { transform: translateX(var(--fighter-rest-x)); animation-name: fighter-right-idle-mobile; animation-duration: 5.2s; }
   .hero-stage { --beam-size: clamp(6rem, 27vw, 8rem); }
+  .gold-shears--beam .gold-shears__float { animation: beam-shears-float-mobile 2.8s 1.7s ease-in-out infinite alternate both; }
+  .gold-shears--beam .gold-shears__half--upper { animation-name: shears-open-upper-mobile; animation-duration: 3.8s; }
+  .gold-shears--beam .gold-shears__half--lower { animation-name: shears-open-lower-mobile; animation-duration: 3.8s; }
   .barber-hit-zone { top: 1rem; width: 42%; height: 42%; }
   .barber-hit-zone--left { left: 1%; }
   .barber-hit-zone--right { right: 1%; }
@@ -266,8 +269,11 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
   .site-footer nav { flex-direction: column; gap: 0; }
 }
 
-@keyframes fighter-left-idle-mobile { from { transform: translateX(var(--fighter-rest-x)) translateY(0) scale(1); } to { transform: translateX(var(--fighter-rest-x)) translateY(-.3%) scale(1.005); } }
-@keyframes fighter-right-idle-mobile { from { transform: translateX(var(--fighter-rest-x)) translateY(0) scale(1); } to { transform: translateX(var(--fighter-rest-x)) translateY(.3%) scale(1.005); } }
+@keyframes fighter-left-idle-mobile { from { transform: translateX(var(--fighter-rest-x)) translateY(0) scale(1); } to { transform: translateX(var(--fighter-rest-x)) translateY(-1.1%) scale(1.012); } }
+@keyframes fighter-right-idle-mobile { from { transform: translateX(var(--fighter-rest-x)) translateY(0) scale(1); } to { transform: translateX(var(--fighter-rest-x)) translateY(1.1%) scale(1.012); } }
+@keyframes beam-shears-float-mobile { from { transform: translateY(0) scale(1); } to { transform: translateY(.45rem) scale(1.035); } }
+@keyframes shears-open-upper-mobile { 0%, 28%, 72%, 100% { transform: rotate(var(--shears-upper-base-angle)); } 44%, 56% { transform: rotate(calc(var(--shears-upper-base-angle) - 18deg)); } }
+@keyframes shears-open-lower-mobile { 0%, 28%, 72%, 100% { transform: rotate(var(--shears-lower-base-angle)); } 44%, 56% { transform: rotate(calc(var(--shears-lower-base-angle) + 18deg)); } }
 
 @media (max-width: 370px) {
   .hero { grid-template-rows: minmax(25rem, 1fr) auto; }
