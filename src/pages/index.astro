@@ -1,0 +1,57 @@
+---
+import { Image } from 'astro:assets';
+import SignupForm from '../components/SignupForm.astro';
+import Layout from '../layouts/Layout.astro';
+import poster from '../assets/barber-battle/barber-battle-poster.jpeg';
+---
+
+<Layout title="Batalla de Barberos | Entre Cortes" description="Primera edición de la Batalla de Barberos de Florencio Varela. Inscribite para competir.">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Primera edición · Florencio Varela</p>
+      <h1 id="hero-title">El pulso se mide <em>entre cortes.</em></h1>
+      <p class="hero-intro">Técnica, identidad y precisión frente a frente. Una competencia nacida para mostrar el talento barbero de nuestra ciudad.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="#inscripcion">Quiero competir <span aria-hidden="true">↓</span></a>
+        <a class="text-link" href="/participacion">Ver cómo participar <span aria-hidden="true">↗</span></a>
+      </div>
+      <dl class="event-facts" aria-label="Datos del evento">
+        <div><dt>Cuándo</dt><dd>8 de noviembre</dd></div>
+        <div><dt>Dónde</dt><dd>Florencio Varela</dd></div>
+        <div><dt>Premio</dt><dd>4 copas en juego</dd></div>
+      </dl>
+    </div>
+    <figure class="poster-frame">
+      <span class="poster-label" aria-hidden="true">01 / La batalla</span>
+      <Image src={poster} alt="Afiche de Entre Cortes, Batalla de Barberos, con dos competidores frente a frente en Florencio Varela" widths={[540, 810, 1080]} sizes="(max-width: 840px) 92vw, 42vw" loading="eager" />
+    </figure>
+  </section>
+
+  <section class="manifesto" aria-labelledby="manifesto-title">
+    <p class="section-number" aria-hidden="true">02</p>
+    <div>
+      <p class="eyebrow">Más que una competencia</p>
+      <h2 id="manifesto-title">Acá se viene a dejar <em>marca.</em></h2>
+    </div>
+    <p>Convocamos a quienes viven la barbería con oficio y actitud. No importa si estás dando tus primeros pasos o si ya tenés años detrás del sillón: queremos ver qué hacés cuando empieza a correr el reloj.</p>
+  </section>
+
+  <section class="steps" aria-labelledby="steps-title">
+    <div class="section-heading">
+      <p class="eyebrow">El camino al escenario</p>
+      <h2 id="steps-title">Tres pasos. Una silla.</h2>
+    </div>
+    <ol>
+      <li><span>01</span><h3>Inscribite</h3><p>Completá el formulario con tus datos y experiencia.</p></li>
+      <li><span>02</span><h3>Esperá el contacto</h3><p>El equipo revisará tu inscripción y te contará la dinámica.</p></li>
+      <li><span>03</span><h3>Mostrá tu técnica</h3><p>Prepará tus herramientas y tu mejor versión para competir.</p></li>
+    </ol>
+  </section>
+
+  <section id="inscripcion" class="signup-section" aria-labelledby="signup-title">
+    <div class="signup-aside" aria-hidden="true">
+      <span>FILO</span><span>PULSO</span><span>ACTITUD</span>
+    </div>
+    <SignupForm />
+  </section>
+</Layout>

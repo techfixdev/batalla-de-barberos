@@ -1,0 +1,143 @@
+---
+import { EXPERIENCE_OPTIONS } from '../lib/barber-signups';
+
+const experienceLabels = {
+  estudiante: 'Estoy aprendiendo',
+  profesional: 'Trabajo como profesional',
+  educador: 'También enseño barbería',
+};
+---
+
+<form id="signup-form" class="signup-form" novalidate>
+  <div class="form-heading">
+    <p class="eyebrow">Cupos limitados</p>
+    <h2 id="signup-title">Entrá a la batalla</h2>
+    <p>Dejanos tus datos. El equipo organizador te contactará para confirmar los próximos pasos.</p>
+  </div>
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="fullName">Nombre y apellido <span aria-hidden="true">*</span></label>
+      <input id="fullName" name="fullName" type="text" autocomplete="name" minlength="3" maxlength="100" required aria-describedby="fullName-error" />
+      <span class="field-error" id="fullName-error"></span>
+    </div>
+
+    <div class="field">
+      <label for="email">Correo electrónico <span aria-hidden="true">*</span></label>
+      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="160" required aria-describedby="email-error" />
+      <span class="field-error" id="email-error"></span>
+    </div>
+
+    <div class="field">
+      <label for="phone">Teléfono <span aria-hidden="true">*</span></label>
+      <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required aria-describedby="phone-error" />
+      <span class="field-error" id="phone-error"></span>
+    </div>
+
+    <div class="field">
+      <label for="barbershop">Barbería <span class="optional">(opcional)</span></label>
+      <input id="barbershop" name="barbershop" type="text" autocomplete="organization" maxlength="120" aria-describedby="barbershop-error" />
+      <span class="field-error" id="barbershop-error"></span>
+    </div>
+
+    <div class="field field-wide">
+      <label for="experience">Experiencia <span aria-hidden="true">*</span></label>
+      <select id="experience" name="experience" required aria-describedby="experience-error">
+        <option value="">Seleccioná una opción</option>
+        {EXPERIENCE_OPTIONS.map((option) => <option value={option}>{experienceLabels[option]}</option>)}
+      </select>
+      <span class="field-error" id="experience-error"></span>
+    </div>
+
+    <div class="field field-wide consent">
+      <input id="acceptedRules" name="acceptedRules" type="checkbox" required aria-describedby="acceptedRules-error" />
+      <label for="acceptedRules">
+        Leí y acepto las <a href="/participacion">condiciones de participación</a> y la <a href="/privacidad">política de privacidad</a>.
+      </label>
+      <span class="field-error" id="acceptedRules-error"></span>
+    </div>
+  </div>
+
+  <button class="button button-primary" type="submit">Enviar inscripción <span aria-hidden="true">↗</span></button>
+  <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+</form>
+
+<script>
+  import { requireElementById } from '../lib/dom-selector';
+
+  const form = requireElementById<HTMLFormElement>('signup-form');
+  const status = requireElementById<HTMLParagraphElement>('form-status');
+  const fieldNames = ['fullName', 'email', 'phone', 'barbershop', 'experience', 'acceptedRules'] as const;
+
+  function control(name: typeof fieldNames[number]): HTMLInputElement | HTMLSelectElement {
+    const item = form.elements.namedItem(name);
+    if (!(item instanceof HTMLInputElement || item instanceof HTMLSelectElement)) throw new Error(`Missing form control: ${name}`);
+    return item;
+  }
+
+  function clearErrors() {
+    for (const name of fieldNames) {
+      control(name).removeAttribute('aria-invalid');
+      requireElementById<HTMLElement>(`${name}-error`).textContent = '';
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearErrors();
+    status.textContent = '';
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      status.textContent = 'Revisá los campos obligatorios.';
+      return;
+    }
+
+    const button = form.getElementsByTagName('button')[0];
+    if (!button) return;
+    button.disabled = true;
+    button.textContent = 'Enviando…';
+
+    const payload = {
+      fullName: control('fullName').value,
+      email: control('email').value,
+      phone: control('phone').value,
+      barbershop: control('barbershop').value,
+      experience: control('experience').value,
+      acceptedRules: (control('acceptedRules') as HTMLInputElement).checked,
+    };
+
+    try {
+      const response = await fetch('/api/signups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as { message?: string; errors?: Record<string, string> };
+
+      if (!response.ok) {
+        if (result.errors) {
+          let firstInvalid: HTMLElement | undefined;
+          for (const [name, message] of Object.entries(result.errors)) {
+            if (!fieldNames.includes(name as typeof fieldNames[number])) continue;
+            const input = control(name as typeof fieldNames[number]);
+            input.setAttribute('aria-invalid', 'true');
+            requireElementById<HTMLElement>(`${name}-error`).textContent = message;
+            firstInvalid ??= input;
+          }
+          firstInvalid?.focus();
+        }
+        status.textContent = result.message ?? 'No pudimos enviar la inscripción.';
+        return;
+      }
+
+      form.reset();
+      status.textContent = result.message ?? '¡Inscripción recibida!';
+    } catch {
+      status.textContent = 'No hay conexión. Revisá tu red e intentá nuevamente.';
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Enviar inscripción ↗';
+    }
+  });
+</script>
