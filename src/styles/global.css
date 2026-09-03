@@ -144,6 +144,25 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 .steps h3 { position: relative; z-index: 1; margin-top: 4.6rem; color: var(--ivory); font-size: 2.35rem; }
 .steps li p { position: relative; z-index: 1; max-width: 18rem; color: var(--muted); }
 
+.barber-rules { position: relative; overflow: hidden; padding: clamp(5rem, 9vw, 8rem) max(1.5rem, calc((100vw - 1400px) / 2)); border-top: 1px solid var(--line-soft); background: radial-gradient(circle at 50% 0, rgba(210,164,59,.09), transparent 28rem), linear-gradient(155deg, #121414, #080909 62%); isolation: isolate; }
+.barber-rules::before { position: absolute; z-index: -1; inset: 0; background-image: linear-gradient(rgba(240,238,231,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(240,238,231,.018) 1px, transparent 1px); background-size: 3rem 3rem; content: ''; mask-image: linear-gradient(to bottom, black, transparent 70%); }
+.rules-heading { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(18rem, .55fr); column-gap: 3rem; align-items: end; margin-bottom: clamp(3rem, 6vw, 5rem); }
+.rules-heading .eyebrow { grid-column: 1 / -1; }
+.rules-heading h2 { max-width: 58rem; color: var(--ivory); font-size: clamp(3.5rem, 7.2vw, 7rem); letter-spacing: -.045em; }
+.rules-heading h2 span { color: transparent; -webkit-text-stroke: 1px var(--gold-bright); }
+.rules-heading > p:last-child { max-width: 28rem; margin: 0 0 .45rem; padding-left: 1.5rem; color: var(--ivory-soft); border-left: 1px solid var(--gold); font-size: 1.08rem; }
+.rules-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1rem; }
+.rule-card { position: relative; grid-column: span 2; overflow: hidden; min-width: 0; padding: clamp(1.35rem, 2.3vw, 2rem); background: linear-gradient(145deg, rgba(24,26,26,.98), rgba(10,11,11,.98)); border: 1px solid #5f5338; box-shadow: inset 0 1px rgba(240,238,231,.04), 0 1.5rem 3rem rgba(0,0,0,.16); }
+.rule-card:nth-child(n + 4) { grid-column: span 3; }
+.rule-card__heading { position: relative; z-index: 1; display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; margin-bottom: 1.55rem; padding-bottom: 1.35rem; border-bottom: 1px solid var(--line); }
+.rule-card__number { color: var(--gold-bright); font: 400 clamp(2.8rem, 4vw, 4rem)/.82 var(--display); }
+.rule-card h3 { color: var(--ivory); font-size: clamp(1.7rem, 2.7vw, 2.65rem); line-height: .95; letter-spacing: -.015em; }
+.rule-card__duration { display: flex; width: fit-content; align-items: center; gap: .45rem; margin: .75rem 0 0; padding: .32rem .7rem; color: var(--gold-bright); border: 1px solid rgba(224,187,97,.65); border-radius: 999px; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.rule-card__duration span { font-size: 1rem; line-height: 1; }
+.rule-card ul { position: relative; z-index: 1; display: grid; gap: .45rem; margin: 0; padding: 0; color: var(--ivory-soft); list-style: none; }
+.rule-card li { position: relative; padding-left: 1rem; font-size: .96rem; line-height: 1.35; }
+.rule-card li::before { position: absolute; top: .62em; left: 0; width: .28rem; height: .28rem; background: var(--gold); content: ''; transform: rotate(45deg); }
+
 .signup-section { display: grid; grid-template-columns: .26fr 1fr; background: var(--ivory); }
 .signup-aside { display: flex; overflow: hidden; min-height: 100%; flex-direction: column; justify-content: space-around; padding: 2rem 0; background: #111313; border-right: 1px solid var(--line); }
 .signup-aside span { color: var(--ivory); font: 400 clamp(4rem, 7vw, 7rem)/.8 var(--display); letter-spacing: -.04em; writing-mode: vertical-rl; transform: rotate(180deg); }
@@ -208,6 +227,10 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 @media (max-width: 900px) {
   .manifesto { grid-template-columns: .2fr 1fr; }
   .manifesto > p:last-child { grid-column: 2; }
+  .rules-heading { grid-template-columns: 1fr; }
+  .rules-heading > p:last-child { margin-top: 1.75rem; }
+  .rules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rule-card, .rule-card:nth-child(n + 4) { grid-column: span 1; }
   .signup-section { grid-template-columns: 1fr; }
   .signup-aside { min-height: auto; flex-direction: row; padding: 1.2rem; border-right: 0; border-bottom: 1px solid var(--line); }
   .signup-aside span { font-size: clamp(2.4rem, 11vw, 5rem); writing-mode: initial; transform: none; }
@@ -261,6 +284,14 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
   .steps ol { grid-template-columns: 1fr; }
   .steps li { min-height: auto; }
   .steps h3 { margin-top: 2.6rem; }
+  .barber-rules { padding-inline: 1rem; }
+  .rules-heading { margin-bottom: 2.5rem; }
+  .rules-heading h2 { font-size: clamp(3.15rem, 15vw, 4.8rem); }
+  .rules-heading > p:last-child { padding-left: 1rem; }
+  .rules-grid { grid-template-columns: 1fr; }
+  .rule-card, .rule-card:nth-child(n + 4) { grid-column: 1; }
+  .rule-card__heading { gap: .8rem; }
+  .rule-card h3 { font-size: 2rem; }
   .signup-aside { display: none; }
   .signup-form { padding-inline: 1rem; }
   .form-grid { grid-template-columns: 1fr; }
