@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "pnpm terms:verify && astro build",
     "check": "astro check",
+    "terms:generate": "node scripts/generate-terms-pdf.mjs",
+    "terms:verify": "node scripts/verify-terms-pdf.mjs",
     "migrate": "node scripts/migrate.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

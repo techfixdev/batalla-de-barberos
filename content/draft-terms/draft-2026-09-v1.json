@@ -1,0 +1,20 @@
+{
+  "version": "draft-2026-09-v1",
+  "title": "Bases y categorías — Batalla de Barberos",
+  "legalMarker": "BORRADOR — PENDIENTE DE REVISIÓN LEGAL",
+  "intro": "Este documento propone contenido para revisión legal y de la organización; no contiene reglas finales.",
+  "categories": [
+    { "name": "Copa Estudiante — Degradado", "eligibility": "Barbero adulto en formación o egresado dentro de [PLAZO A DEFINIR]; acreditación [A DEFINIR].", "work": "Degradado completo y terminación superior en un modelo adulto con consentimiento dentro de [TIEMPO A DEFINIR].", "unresolved": "Variantes, largo inicial, productos, tiempo y cupo: [A DEFINIR]." },
+    { "name": "Copa Profesional — Fade", "eligibility": "Barbero profesional adulto; experiencia mínima [A DEFINIR].", "work": "Fade competitivo con forma, transiciones, contorno y terminación dentro de [TIEMPO A DEFINIR].", "unresolved": "Brief técnico, condición del modelo, herramientas, productos, tiempo y cupo: [A DEFINIR]." },
+    { "name": "Copa Clásico y Barba", "eligibility": "Barbero adulto y modelo adulto con cabello y barba en [CONDICIÓN INICIAL A DEFINIR].", "work": "Corte clásico y diseño de barba coordinados, respetando seguridad de la piel.", "unresolved": "Estilos, largos, navaja, tiempo, herramientas, productos y cupo: [A DEFINIR]." },
+    { "name": "Copa Freestyle — Diseño Creativo", "eligibility": "Barbero adulto; restricciones de experiencia [A DEFINIR].", "work": "Corte o diseño creativo original con las reglas de seguridad y productos aprobadas.", "unresolved": "Color, pre-color, esténciles, extensiones, tiempo, tema, herramientas y cupo: [A DEFINIR]." }
+  ],
+  "sharedRequirements": [
+    "Competidores y modelos adultos; consentimiento del modelo [A DEFINIR CON REVISIÓN LEGAL].",
+    "Sanidad, herramientas, protección de piel y conducta respetuosa son obligatorias; detalles por categoría [A DEFINIR].",
+    "Duración, acreditación, llegadas tarde, sustitución, abandono, descalificación, empates, protestas y apelaciones: [A DEFINIR].",
+    "La evaluación puede considerar técnica, limpieza, equilibrio, terminación, dificultad, creatividad y cumplimiento; ponderaciones [A DEFINIR].",
+    "Cronograma, sede, organizador, jurado, cupos, selección, premios, imagen, cancelación, privacidad, retención y contacto: [A DEFINIR].",
+    "La experiencia indicada en la inscripción no es una categoría de competencia; no implica postulación, asignación ni reasignación de categoría."
+  ]
+}
