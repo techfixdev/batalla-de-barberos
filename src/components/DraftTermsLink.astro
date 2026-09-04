@@ -1,0 +1,10 @@
+---
+import { getCurrentDraftTerms } from '../lib/terms/draft-terms-manifest';
+
+const terms = getCurrentDraftTerms();
+---
+
+<span class="draft-terms-link">
+  <a href={terms.publicPath} type={terms.mimeType}>Bases y categorías (PDF)</a>
+  <strong>{terms.legalMarker}</strong>
+</span>

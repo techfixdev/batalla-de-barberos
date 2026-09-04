@@ -36,7 +36,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   try {
     await createSignup(validation.data);
-    return json({ message: '¡Inscripción recibida! Pronto nos vamos a comunicar con vos.' }, 201);
+    return json({ message: 'Guardamos tu inscripción. Intentaremos enviar un acuse por WhatsApp con el PDF adjunto; si no lo recibís, no invalida la inscripción guardada. La selección la decide más adelante la organización y la respuesta posterior de la persona participante se registra por separado. El acuse no constituye consentimiento legal ni confirma selección o participación.' }, 201);
   } catch (error) {
     if (error instanceof LibsqlError && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return json({ message: 'Ese correo electrónico ya está inscripto.' }, 409);

@@ -38,7 +38,7 @@ export function validateSignup(value: unknown): ValidationResult {
   if (!phonePattern.test(phone)) errors.phone = 'Ingresá un teléfono válido.';
   if (barbershop.length > 120) errors.barbershop = 'El nombre de la barbería es demasiado largo.';
   if (!EXPERIENCE_OPTIONS.includes(experience as Experience)) errors.experience = 'Elegí tu nivel de experiencia.';
-  if (!acceptedRules) errors.acceptedRules = 'Tenés que aceptar el reglamento y la política de privacidad.';
+  if (!acceptedRules) errors.acceptedRules = 'Tenés que confirmar que leíste el aviso de participación, la política de privacidad y las bases y categorías (PDF): BORRADOR — PENDIENTE DE REVISIÓN LEGAL.';
 
   if (Object.keys(errors).length > 0) return { success: false, errors };
 

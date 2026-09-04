@@ -1,29 +1,30 @@
 ---
+import DraftTermsLink from '../components/DraftTermsLink.astro';
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="Privacidad | Batalla de Barberos" description="Política de privacidad del formulario de la Batalla de Barberos.">
+<Layout title="Privacidad | Batalla de Barberos" description="Información de privacidad en revisión legal para la inscripción.">
   <article class="legal-page">
     <header>
       <p class="eyebrow">Tus datos, con claridad</p>
-      <h1>Política de privacidad</h1>
-      <p>Esta política explica cómo usamos los datos que enviás en el formulario de inscripción.</p>
+      <h1>Privacidad</h1>
+      <p>Esta información acompaña la inscripción y las <DraftTermsLink />. Es contenido en revisión legal y no reemplaza una política final.</p>
     </header>
     <section>
-      <h2>Datos que recopilamos</h2>
-      <p>Recopilamos nombre, correo electrónico, teléfono, barbería —si decidís informarla— y nivel de experiencia. También registramos la fecha de la inscripción.</p>
+      <h2>Datos de la inscripción</h2>
+      <p>El formulario solicita nombre, correo electrónico, teléfono, barbería —si decidís informarla— y nivel de experiencia. La inscripción guardada se mantiene separada de cualquier intento de acuse por WhatsApp.</p>
     </section>
     <section>
-      <h2>Para qué los usamos</h2>
-      <p>Usamos estos datos únicamente para administrar la convocatoria, evaluar inscripciones, contactar participantes y coordinar la competencia. No vendemos ni cedemos la información con fines publicitarios.</p>
+      <h2>Acuse por WhatsApp</h2>
+      <p>Para el acuse previsto se procesa el número normalizado, el texto del acuse y la URL, el nombre y el tipo MIME del PDF mediante una ruta externa de Evolution API/WhatsApp. Si ese intento falla o el mensaje no llega, no invalida la inscripción guardada.</p>
     </section>
     <section>
-      <h2>Conservación y seguridad</h2>
-      <p>Los datos se almacenan en una base de datos Turso con acceso restringido. Se conservarán durante el tiempo necesario para organizar el evento y atender obligaciones aplicables, y luego se eliminarán de forma segura.</p>
+      <h2>Lo que el acuse no confirma</h2>
+      <p>El intento de acuse, su recepción, entrega, lectura o la apertura del PDF no constituye consentimiento legal, selección, aceptación para competir, confirmación de participación ni asignación de categoría. Las <DraftTermsLink /> siguen siendo un borrador.</p>
     </section>
     <section>
-      <h2>Tus opciones</h2>
-      <p>Podés solicitar acceso, corrección o eliminación de tus datos respondiendo al mensaje con el que la organización se comunique con vos. Antes de atender la solicitud podremos pedirte que verifiques tu identidad.</p>
+      <h2>Información pendiente de definición</h2>
+      <p>La identidad del responsable, ubicación de alojamiento, plazos de conservación, base legal, contacto oficial y demás detalles de tratamiento permanecen [A DEFINIR CON REVISIÓN LEGAL]. No se infieren ni se completan en este borrador.</p>
     </section>
     <a class="text-link" href="/">Volver al inicio <span aria-hidden="true">←</span></a>
   </article>

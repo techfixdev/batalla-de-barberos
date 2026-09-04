@@ -1,4 +1,5 @@
 ---
+import DraftTermsLink from './DraftTermsLink.astro';
 import GoldShears from './GoldShears.astro';
 import { EXPERIENCE_OPTIONS } from '../lib/barber-signups';
 
@@ -14,7 +15,7 @@ const experienceLabels = {
     <p class="eyebrow">Cupos limitados</p>
     <h2 id="signup-title">Entrá a la batalla</h2>
     <span class="phrase-rule" aria-hidden="true"><GoldShears /></span>
-    <p>Dejanos tus datos. El equipo organizador te contactará para confirmar los próximos pasos.</p>
+    <p>Dejanos tus datos para guardar tu inscripción. La revisión, la selección y una respuesta posterior de la persona participante son instancias distintas.</p>
   </div>
 
   <div class="form-grid">
@@ -54,7 +55,7 @@ const experienceLabels = {
     <div class="field field-wide consent">
       <input id="acceptedRules" name="acceptedRules" type="checkbox" required aria-describedby="acceptedRules-error" />
       <label for="acceptedRules">
-        Leí y acepto las <a href="/participacion">condiciones de participación</a> y la <a href="/privacidad">política de privacidad</a>.
+        Leí el <a href="/participacion">aviso de participación</a> y la <a href="/privacidad">política de privacidad</a>. También consulté las <DraftTermsLink />; esta casilla solo registra esa lectura, no acepta reglas finales y no constituye consentimiento legal.
       </label>
       <span class="field-error" id="acceptedRules-error"></span>
     </div>
@@ -62,6 +63,7 @@ const experienceLabels = {
 
   <button class="button button-primary" type="submit">Enviar inscripción <span aria-hidden="true">↗</span></button>
   <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+  <p>Las <DraftTermsLink /> son información no final y no determinan una selección ni una respuesta de participación.</p>
 </form>
 
 <script>
@@ -134,7 +136,7 @@ const experienceLabels = {
       }
 
       form.reset();
-      status.textContent = result.message ?? '¡Inscripción recibida!';
+      status.textContent = 'Guardamos tu inscripción. Intentaremos enviarte un acuse por WhatsApp con el PDF adjunto; si no lo recibís, no invalida la inscripción guardada. La selección la decide más adelante la organización y la respuesta posterior de la persona participante se registra por separado. El acuse no constituye consentimiento legal ni confirma selección o participación.';
     } catch {
       status.textContent = 'No hay conexión. Revisá tu red e intentá nuevamente.';
     } finally {
