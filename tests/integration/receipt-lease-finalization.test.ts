@@ -79,7 +79,8 @@ describe('receipt lease-owned finalization', () => {
     expect((await client.execute('SELECT attempt_no, trigger, outcome, error_code FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
       .toEqual([{ attempt_no: 1, trigger: 'automatic', outcome: 'uncertain', error_code: 'ATTEMPT_BUSY' }]);
 
-    const replacement = await repository.claim(key, 'admin_retry');
+    await expect(repository.claim(key, 'admin_retry')).resolves.toBeNull();
+    const replacement = await repository.claim(key, 'admin_retry', { acknowledgeUncertain: true });
     expect(replacement).not.toBeNull();
     expect((await client.execute('SELECT attempt_no, trigger, outcome FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
       .toEqual([{ attempt_no: 1, trigger: 'automatic', outcome: 'uncertain' }, { attempt_no: 2, trigger: 'admin_retry', outcome: 'in_progress' }]);
@@ -166,7 +167,7 @@ describe('receipt lease-owned finalization', () => {
     const service = createReceiptService(repository, messenger);
     await service.dispatch(key);
     await service.dispatch(key, 'admin_retry');
-    await service.dispatch(key, 'admin_retry');
+    await service.dispatch(key, 'admin_retry', { acknowledgeUncertain: true });
     expect(sent).toHaveLength(3);
     const notificationRow = await client.execute('SELECT status, provider_message_id, last_error_code, last_error_message FROM receipt_notifications');
     const attempts = await client.execute('SELECT provider_message_id, error_code, error_message FROM receipt_notification_attempts ORDER BY attempt_no');

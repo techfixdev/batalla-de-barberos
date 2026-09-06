@@ -12,6 +12,12 @@ export const DRAFT_TERMS = {
   },
 } as const;
 
+export type DraftTerms = (typeof DRAFT_TERMS)[keyof typeof DRAFT_TERMS];
+
+export function getDraftTermsByVersion(version: string): DraftTerms | null {
+  return DRAFT_TERMS[version as keyof typeof DRAFT_TERMS] ?? null;
+}
+
 export function getCurrentDraftTerms() {
-  return DRAFT_TERMS[CURRENT_DRAFT_TERMS_VERSION];
+  return getDraftTermsByVersion(CURRENT_DRAFT_TERMS_VERSION)!;
 }

@@ -1,5 +1,5 @@
 import { isValidReceiptDocument, safeErrorCode, type ReceiptMessenger, type SendReceiptResult } from './contracts';
-import type { ReceiptAttemptTrigger, ReceiptNotificationRepository } from './registration-receipts';
+import type { ReceiptAttemptTrigger, ReceiptClaimPreconditions, ReceiptNotificationRepository } from './registration-receipts';
 
 function outcome(result: SendReceiptResult) {
   if (result.kind === 'accepted' && result.acceptedArtifact === 'document') {
@@ -13,8 +13,8 @@ export type ReceiptDispatchState = 'not-claimed' | 'completed' | 'reconciliation
 
 export function createReceiptService(repository: ReceiptNotificationRepository, messenger: ReceiptMessenger) {
   return {
-    async dispatch(logicalMessageKey: string, trigger: ReceiptAttemptTrigger = 'automatic'): Promise<ReceiptDispatchState> {
-      const attempt = await repository.claim(logicalMessageKey, trigger);
+    async dispatch(logicalMessageKey: string, trigger: ReceiptAttemptTrigger = 'automatic', preconditions?: ReceiptClaimPreconditions): Promise<ReceiptDispatchState> {
+      const attempt = await repository.claim(logicalMessageKey, trigger, preconditions);
       if (!attempt) return 'not-claimed';
       if (!isValidReceiptDocument(attempt.attachment)) return 'reconciliation-required';
       let result: SendReceiptResult;
