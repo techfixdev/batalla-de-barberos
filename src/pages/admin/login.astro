@@ -1,0 +1,40 @@
+---
+import { getDatabase } from '../../lib/database';
+import { isValidAdminPasswordHash } from '../../lib/server/admin/password';
+import { hasPreauthConfiguration, issuePreauthProof, serializePreauthCookie } from '../../lib/server/admin/preauth-csrf';
+import { createAdminSessionService } from '../../lib/server/admin/session-service';
+
+const secret = import.meta.env.ADMIN_SESSION_SECRET_B64;
+const passwordHash = import.meta.env.ADMIN_PASSWORD_HASH;
+const production = import.meta.env.PROD;
+const securityHeaders = { 'Cache-Control': 'private, no-store', 'Content-Security-Policy': "frame-ancestors 'none'", 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' };
+for (const [name, value] of Object.entries(securityHeaders)) Astro.response.headers.set(name, value);
+const cookieName = production ? '__Host-bdb_admin' : 'bdb_admin';
+const cookies = Astro.request.headers.get('cookie')?.split(';').map((item) => item.trim()).filter((item) => item.startsWith(`${cookieName}=`)) ?? [];
+let unavailable = !isValidAdminPasswordHash(passwordHash) || !hasPreauthConfiguration(secret);
+let preauth: ReturnType<typeof issuePreauthProof> = null;
+if (!unavailable) {
+  try {
+    const session = cookies.length === 1 ? await createAdminSessionService({ database: getDatabase(), sessionSecretB64: secret! }).resolve(cookies[0]!.slice(cookieName.length + 1)) : null;
+    if (session) return Astro.redirect('/admin', 303);
+    preauth = issuePreauthProof({ sessionSecretB64: secret! });
+    if (!preauth) unavailable = true;
+    else Astro.response.headers.append('Set-Cookie', serializePreauthCookie(preauth.value, preauth.expiresAt, production));
+  } catch { unavailable = true; }
+}
+if (unavailable) Astro.response.status = 503;
+---
+<html lang="es">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>Acceso administrativo</title></head>
+  <body>
+    <main>
+      <h1>Acceso administrativo</h1>
+      {unavailable ? <p role="alert">Servicio no disponible.</p> : <form method="post" action="/api/admin/login">
+        <input type="hidden" name="preauth" value={preauth?.value} />
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password" />
+        <button type="submit">Ingresar</button>
+      </form>}
+    </main>
+  </body>
+</html>
