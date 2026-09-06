@@ -1,12 +1,24 @@
 import { createClient, type Client } from '@libsql/client';
 import { readFile } from 'node:fs/promises';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createSignupPost } from '../../src/pages/api/signups';
+const { getDatabaseMock } = vi.hoisted(() => ({ getDatabaseMock: vi.fn() }));
+
+vi.mock('../../src/lib/database', () => ({ getDatabase: getDatabaseMock }));
+
+import { POST, createConfiguredSignupPost, createSignupPost } from '../../src/pages/api/signups';
 import { migrate } from '../../scripts/migrate.mjs';
 
 const databases: Client[] = [];
 const payload = { fullName: 'Ana Barbera', email: 'ana@example.com', phone: '+54 9 11 2345-6789', barbershop: '', experience: 'profesional', acceptedRules: true };
+const signupEnvironmentKeys = ['NODE_ENV', 'CANONICAL_SITE_ORIGIN', 'WHATSAPP_DISPATCH_ENABLED'] as const;
+
+function restoreSignupEnvironment(before: Record<string, string | undefined>) {
+  for (const key of signupEnvironmentKeys) {
+    if (before[key] === undefined) delete process.env[key];
+    else process.env[key] = before[key];
+  }
+}
 
 async function database() {
   const client = createClient({ url: 'file::memory:' });
@@ -20,7 +32,11 @@ async function submit(post: ReturnType<typeof createSignupPost>, body = payload,
   return post({ request: new Request('https://signup.test/api/signups', { method: 'POST', headers, body: JSON.stringify(body) }), clientAddress: crypto.randomUUID() } as never);
 }
 
-afterEach(() => databases.splice(0).forEach((client) => client.close()));
+afterEach(() => {
+  databases.splice(0).forEach((client) => client.close());
+  getDatabaseMock.mockReset();
+  vi.restoreAllMocks();
+});
 
 describe('signup identity and orchestration', () => {
   it('validates and normalizes before persisting', async () => {
@@ -102,7 +118,9 @@ describe('signup identity and orchestration', () => {
     const diagnostics: unknown[] = [];
     await client.execute("CREATE TRIGGER reject_signup BEFORE INSERT ON barber_signups BEGIN SELECT RAISE(ABORT, 'db-secret ana@example.com'); END");
     try {
-      expect((await submit(createSignupPost({ database: client, diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) }))).status).toBe(500);
+      const response = await submit(createSignupPost({ database: client, diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) }));
+      expect(response.status).toBe(500);
+      expect(await response.text()).not.toContain('db-secret ana@example.com');
       expect((await client.execute('SELECT id FROM barber_signups')).rows).toEqual([]);
       expect(diagnostics).toEqual([]);
     } finally {
@@ -116,7 +134,82 @@ describe('signup identity and orchestration', () => {
     const tainted = 'db-secret ana@example.com +5491123456789';
     const post = createSignupPost({ database: client, notificationRepository: { ensureForRegistration: async () => { throw new Error(tainted); } }, diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) });
     expect((await submit(post)).status).toBe(201);
-    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', reason: 'notification-persistence-failed' }]);
+    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', outcome: 'reconciliation-required' }]);
     expect(JSON.stringify(diagnostics)).not.toContain(tainted);
+  });
+
+  it('rejects invalid configured signup origin before constructing the default database client', async () => {
+    let databaseConstructed = false;
+    const post = createConfiguredSignupPost({
+      database: () => { databaseConstructed = true; throw new Error('must not construct'); },
+      environment: { NODE_ENV: 'production', WHATSAPP_DISPATCH_ENABLED: 'false' },
+    });
+
+    const response = await post({ request: new Request('https://attacker.example.test/api/signups', { method: 'POST' }), clientAddress: 'test' } as never);
+    expect(response.status).toBe(503);
+    expect(databaseConstructed).toBe(false);
+  });
+
+  it('uses the actual exported POST wrapper for configured production canonical snapshots and blocks missing or unsafe origins before getDatabase', async () => {
+    const before = Object.fromEntries(signupEnvironmentKeys.map((key) => [key, process.env[key]]));
+    const client = await database();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.CANONICAL_SITE_ORIGIN = 'https://public.example.test';
+      process.env.WHATSAPP_DISPATCH_ENABLED = 'false';
+      getDatabaseMock.mockReturnValue(client);
+
+      const saved = await POST({
+        request: new Request('https://attacker.example.test/api/signups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+        clientAddress: crypto.randomUUID(),
+      } as never);
+      expect(saved.status).toBe(201);
+      expect(getDatabaseMock).toHaveBeenCalledTimes(1);
+      expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
+        .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v1.pdf' }]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      getDatabaseMock.mockClear();
+      delete process.env.CANONICAL_SITE_ORIGIN;
+      const missing = await POST({ request: new Request('https://attacker.example.test/api/signups', { method: 'POST' }), clientAddress: 'test' } as never);
+      expect(missing.status).toBe(503);
+      expect(getDatabaseMock).not.toHaveBeenCalled();
+
+      process.env.CANONICAL_SITE_ORIGIN = 'https://public.example.test/unsafe';
+      const unsafe = await POST({ request: new Request('https://attacker.example.test/api/signups', { method: 'POST' }), clientAddress: 'test' } as never);
+      expect(unsafe.status).toBe(503);
+      expect(getDatabaseMock).not.toHaveBeenCalled();
+    } finally {
+      restoreSignupEnvironment(before);
+    }
+  });
+
+  it('snapshots the configured canonical origin instead of an incoming Host and fails closed before database work', async () => {
+    const client = await database();
+    const environment = { NODE_ENV: 'production', CANONICAL_SITE_ORIGIN: 'https://public.example.test', WHATSAPP_DISPATCH_ENABLED: 'false' };
+    const post = createSignupPost({ database: client, environment } as never);
+    const response = await post({
+      request: new Request('https://attacker.example.test/api/signups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      clientAddress: crypto.randomUUID(),
+    } as never);
+
+    expect(response.status).toBe(201);
+    expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
+      .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v1.pdf' }]);
+
+    let databaseUsed = false;
+    const blocked = createSignupPost({
+      database: { execute: async () => { databaseUsed = true; throw new Error('must not query'); } },
+      environment: { NODE_ENV: 'production', WHATSAPP_DISPATCH_ENABLED: 'false' },
+    } as never);
+    const unavailable = await blocked({
+      request: new Request('https://attacker.example.test/api/signups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      clientAddress: crypto.randomUUID(),
+    } as never);
+
+    expect(unavailable.status).toBe(503);
+    expect(databaseUsed).toBe(false);
   });
 });

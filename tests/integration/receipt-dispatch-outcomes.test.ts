@@ -142,7 +142,7 @@ describe('signup receipt dispatch outcomes', () => {
     expect((await submit(createSignupPost({ database: client, receiptMessenger: staleMessenger, dispatchConfiguration: readyConfiguration(), diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) }))).status).toBe(201);
     expect(await receipt(client)).toMatchObject({ status: 'pending', attempt_count: 1 });
     expect((await client.execute('SELECT outcome FROM receipt_notification_attempts')).rows).toEqual([{ outcome: 'in_progress' }]);
-    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', reason: 'finalization-unresolved' }]);
+    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', outcome: 'reconciliation-required' }]);
   });
 
   it('keeps a ready-profile replay after sent to one attempt and one provider request', async () => {
@@ -201,7 +201,7 @@ describe('signup receipt dispatch outcomes', () => {
     expect(await response.json()).toEqual({ message: 'Guardamos tu inscripción. Intentaremos enviar un acuse por WhatsApp con el PDF adjunto; si no lo recibís, no invalida la inscripción guardada. La selección la decide más adelante la organización y la respuesta posterior de la persona participante se registra por separado. El acuse no constituye consentimiento legal ni confirma selección o participación.' });
     expect(await receipt(client)).toMatchObject({ status: 'pending', attempt_count: 0 });
     expect((await client.execute('SELECT id FROM receipt_notification_attempts')).rows).toEqual([]);
-    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', reason: 'dispatch-lookup-failed' }]);
+    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', outcome: 'reconciliation-required' }]);
     expect(JSON.stringify(diagnostics)).not.toContain(tainted);
   });
 
@@ -212,10 +212,21 @@ describe('signup receipt dispatch outcomes', () => {
     await client.execute(`CREATE TRIGGER reject_claim BEFORE INSERT ON receipt_notification_attempts BEGIN SELECT RAISE(ABORT, '${tainted}'); END`);
     try {
       expect((await submit(createSignupPost({ database: client, dispatchConfiguration: readyConfiguration(), diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) }))).status).toBe(201);
-      expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', reason: 'dispatch-operation-failed' }]);
+      expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', outcome: 'reconciliation-required' }]);
       expect(JSON.stringify(diagnostics)).not.toContain(tainted);
     } finally {
       await client.execute('DROP TRIGGER reject_claim');
     }
+  });
+
+  it('persists only a static diagnostic when a provider throws tainted content', async () => {
+    const client = await database();
+    const tainted = 'Bearer key cookie=csrf Ana +5491123456789 203.0.113.2 raw provider body';
+    const messenger: ReceiptMessenger = { send: async () => { throw new Error(tainted); } };
+
+    expect((await submit(createSignupPost({ database: client, receiptMessenger: messenger, dispatchConfiguration: readyConfiguration() }))).status).toBe(201);
+    const stored = await client.execute('SELECT last_error_code, last_error_message FROM receipt_notifications');
+    expect(stored.rows).toEqual([{ last_error_code: 'PROVIDER_NETWORK', last_error_message: 'Error del proveedor al enviar el documento.' }]);
+    expect(JSON.stringify(stored.rows)).not.toContain(tainted);
   });
 });

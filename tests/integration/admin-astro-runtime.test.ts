@@ -11,7 +11,7 @@ import { migrate } from '../../scripts/migrate.mjs';
 
 const PASSWORD_HASH = 'scrypt$v1$N=32768,r=8,p=1$AAECAwQFBgcICQoLDA0ODw$eo40JB24mNWRdcaWU4xBdGepdf_laQaEJfFhiNMVnFg';
 const SESSION_SECRET = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
-const ENVIRONMENT = ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'ADMIN_PASSWORD_HASH', 'ADMIN_SESSION_SECRET_B64', 'ASTRO_DISABLE_UPDATE_CHECK', 'WHATSAPP_DISPATCH_ENABLED'] as const;
+const ENVIRONMENT = ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'ADMIN_PASSWORD_HASH', 'ADMIN_SESSION_SECRET_B64', 'CANONICAL_SITE_ORIGIN', 'ASTRO_DISABLE_UPDATE_CHECK', 'WHATSAPP_DISPATCH_ENABLED'] as const;
 
 function restoreEnvironment(before: Record<string, string | undefined>) {
   for (const key of ENVIRONMENT) {
@@ -77,6 +77,7 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     process.env.TURSO_AUTH_TOKEN = 'local-test-token';
     process.env.ADMIN_PASSWORD_HASH = PASSWORD_HASH;
     process.env.ADMIN_SESSION_SECRET_B64 = SESSION_SECRET;
+    process.env.CANONICAL_SITE_ORIGIN = 'http://127.0.0.1';
     process.env.ASTRO_DISABLE_UPDATE_CHECK = 'true';
     process.env.WHATSAPP_DISPATCH_ENABLED = 'false';
     client = createClient({ url: process.env.TURSO_DATABASE_URL });
