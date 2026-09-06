@@ -1,0 +1,26 @@
+---
+import '../styles/global.css';
+
+const { csrfToken } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Administración · Batalla de Barberos</title>
+  </head>
+  <body class="admin-page">
+    <a class="skip-link" href="#contenido-admin">Saltar al contenido</a>
+    <header class="admin-header">
+      <a class="admin-brand" href="/admin">Batalla de Barberos <span>Administración</span></a>
+      <form action="/api/admin/logout" method="post">
+        <input type="hidden" name="csrf" value={csrfToken} />
+        <button class="admin-logout" type="submit">Cerrar sesión</button>
+      </form>
+    </header>
+    <main id="contenido-admin" class="admin-main"><slot /></main>
+  </body>
+</html>

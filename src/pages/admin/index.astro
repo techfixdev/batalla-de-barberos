@@ -1,0 +1,61 @@
+---
+import RegistrationStates from '../../components/admin/RegistrationStates.astro';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDatabase } from '../../lib/database';
+import { presentRegistration } from '../../lib/server/admin/registration-presentation';
+import { createRegistrationReadRepository } from '../../lib/server/admin/registration-read-repository';
+
+const allowed = new Set(['review', 'participant', 'receipt', 'attention', 'cursor']);
+const query = Astro.url.searchParams;
+const invalidQuery = [...query].some(([key]) => !allowed.has(key)) || [...allowed].some((key) => query.getAll(key).length > 1);
+const input = { reviewState: query.get('review') ?? undefined, participantResponseState: query.get('participant') ?? undefined,
+  receiptStatus: query.get('receipt') ?? undefined, attention: query.get('attention') ?? undefined, cursor: query.get('cursor') ?? undefined };
+let registrations: Awaited<ReturnType<ReturnType<typeof createRegistrationReadRepository>['list']>>['registrations'] = [];
+let count = 0, nextCursor: string | null = null, errorStatus: 400 | 503 | null = null;
+
+if (invalidQuery) errorStatus = 400;
+else {
+  try {
+    const repository = createRegistrationReadRepository(getDatabase());
+    ({ registrations, nextCursor } = await repository.list(input));
+    count = await repository.count(input);
+  } catch (error) {
+    errorStatus = error instanceof Error && error.message.startsWith('Invalid registration') ? 400 : 503;
+  }
+}
+if (errorStatus) Astro.response.status = errorStatus;
+
+function href(cursor?: string | null) {
+  const values = new URLSearchParams();
+  if (input.reviewState) values.set('review', input.reviewState);
+  if (input.participantResponseState) values.set('participant', input.participantResponseState);
+  if (input.receiptStatus) values.set('receipt', input.receiptStatus);
+  if (input.attention) values.set('attention', input.attention);
+  if (cursor) values.set('cursor', cursor);
+  return values.size ? `/admin?${values}` : '/admin';
+}
+---
+
+<AdminLayout csrfToken={Astro.locals.adminCsrfToken}>
+  <section class="admin-list" aria-labelledby="admin-title">
+    <p class="eyebrow">Panel protegido</p>
+    <h1 id="admin-title">Inscripciones recibidas</h1>
+    {errorStatus ? <p class="admin-message" role="alert">{errorStatus === 400 ? 'Solicitud no válida.' : 'Servicio no disponible.'}</p> : <>
+      <p class="admin-count">{count} inscripciones recibidas</p>
+      <form class="admin-filters" method="get" action="/admin">
+        <label>Revisión<select name="review"><option value="">Todas</option>{['received', 'under_review', 'selected', 'rejected', 'withdrawn'].map((value) => <option value={value} selected={input.reviewState === value}>{value}</option>)}</select></label>
+        <label>Respuesta<select name="participant"><option value="">Todas</option>{['not_requested', 'pending', 'confirmed', 'declined'].map((value) => <option value={value} selected={input.participantResponseState === value}>{value}</option>)}</select></label>
+        <label>Acuse<select name="receipt"><option value="">Todos</option>{['pending', 'sent', 'failed', 'uncertain'].map((value) => <option value={value} selected={input.receiptStatus === value}>{value}</option>)}</select></label>
+        <label>Atención<select name="attention"><option value="">Todas</option><option value="1" selected={input.attention === '1'}>Requiere atención</option></select></label>
+        <button type="submit">Filtrar</button><a href="/admin">Restablecer filtros</a>
+      </form>
+      {count === 0 ? <p class="admin-empty">Todavía no hay inscripciones recibidas</p> : registrations.length === 0 ? <p class="admin-empty">No hay inscripciones con estos filtros.</p> : <div class="admin-table-wrap"><table><thead><tr><th>Inscripción</th><th>Teléfono</th><th>Estados</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody>
+        {registrations.map((registration) => { const view = presentRegistration(registration); return <tr><td><strong>{registration.fullName}</strong><br /><small>{registration.id}</small></td><td>{view.phone}</td><td><RegistrationStates registration={view} /></td><td><a href={`/admin/inscripciones/${encodeURIComponent(registration.id)}`}>Ver inscripción</a></td></tr>; })}
+      </tbody></table></div>}
+      <nav class="admin-pagination" aria-label="Paginación de inscripciones">
+        {input.cursor && <a href={href()}>Volver a la primera página</a>}
+        {nextCursor && <a href={href(nextCursor)}>Siguientes 50 inscripciones</a>}
+      </nav>
+    </>}
+  </section>
+</AdminLayout>

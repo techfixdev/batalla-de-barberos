@@ -1,0 +1,12 @@
+---
+import type { RegistrationPresentation } from '../../lib/server/admin/registration-presentation';
+
+const { registration } = Astro.props as { registration: RegistrationPresentation };
+const tone = (label: string) => label.includes('fallido') ? 'danger' : label.includes('incierto') ? 'warning' : label.includes('aceptado') ? 'success' : 'neutral';
+---
+
+<dl class="registration-states">
+  <div><dt>{registration.review.heading}</dt><dd class:list={['admin-state', `admin-state--${tone(registration.review.label)}`]}>{registration.review.label}</dd></div>
+  <div><dt>{registration.participantResponse.heading}</dt><dd class:list={['admin-state', `admin-state--${tone(registration.participantResponse.label)}`]}>{registration.participantResponse.label}</dd></div>
+  <div><dt>{registration.receipt.heading}</dt><dd class:list={['admin-state', `admin-state--${tone(registration.receipt.label)}`]}>{registration.receipt.label}</dd></div>
+</dl>
