@@ -1726,3 +1726,14 @@ Parent-owned rows remain byte-for-byte unchanged: R2 legal/content approval, R3 
 - A fresh independent verifier adjudicated the prior failure as importing R5 canonical-availability requirements into R4; the historical proof remains valid after intentional cleanup, and the exact historical URL above removes the provenance gap without another URL send.
 - No secrets, raw bodies, recipients, or native-attempt tokens are recorded. No code, test, configuration, deploy, activation, database, admin, or provider-state change was made by this evidence-only update.
 - **Remaining gates:** R5 and R6 stay unchecked. Full canonical application integration belongs to R5; no Vercel deployment or dispatch activation is claimed here.
+
+## 2026-09-06 — R5 pre-deployment verification and paused security gate
+- R4 subsequently reached native completion. Production dispatch remains disabled; R5 and R6 remain unchecked.
+- Independent Node 22.23.2 verification passed 183 tests across 22 files, Astro checks across 85 files, build, and both working-tree and staged whitespace checks.
+- Local commits 1c9dee9, 1981a8d, and 90b55b3 preserve previously verified signup, snapshot, and atomic-finalization units at 303, 325, and 183 changed lines. Working-tree bytes and unrelated index entries were preserved; nothing was pushed.
+- The user granted delivery size exceptions only for the 452-line adapter unit, 401-line provisioning unit, 525-line design record, and 1,728-line historical progress record. All other delivery units retain the 400-line limit.
+- The first known-secret scan found no exact credential matches but used the wrong Node runtime and misclassified a TypeScript declaration as an environment file.
+- The correction used Node 22 and found no exact matches or tracked private filenames, but did not establish Cloudflare tunnel-token coverage; therefore the security gate has not passed.
+- A filename-only inspection confirms the private tunnel-token file exists. Its existence does not establish scanner coverage, and no credential value was printed by the parent.
+- The automatic release chain is paused after the corrective verification failed. Correct the scanner's coverage handling before resuming; do not request replacement credentials or infer a credential leak from this result.
+- No Vercel configuration, domain attachment, production deployment, or dispatch activation occurred during this pre-deployment step.
