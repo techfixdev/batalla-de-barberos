@@ -1,6 +1,8 @@
 import { createClient, type Client } from '@libsql/client';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createRegistrationLifecycleRepository } from '../../src/lib/server/admin/registration-lifecycle-repository';
+import { createRegistrationManagementService } from '../../src/lib/server/admin/registration-management-service';
 import { createRegistrationReadRepository } from '../../src/lib/server/admin/registration-read-repository';
 import { presentRegistration } from '../../src/lib/server/admin/registration-presentation';
 import { migrate } from '../../scripts/migrate.mjs';
@@ -144,5 +146,115 @@ describe('submitted-registration-only admin read model', () => {
     expect(JSON.stringify(detail)).not.toContain('ana@example.test');
     expect(JSON.stringify(detail)).not.toContain('+5491100000000');
     expect(JSON.stringify(detail)).not.toContain('private-id');
+  });
+
+  it('changes only review state, increments its version, and appends one matching audit event', async () => {
+    const client = await database();
+    await seedRegistration(client, 'review-change', '2026-09-05T10:00:00.000Z');
+    await seedReceipt(client, 'review-change', 'sent');
+    const service = createRegistrationManagementService({
+      repository: createRegistrationLifecycleRepository(client),
+      now: () => '2026-09-05T11:00:00.000Z',
+      createId: () => 'audit-review-change',
+    });
+
+    await expect(service.changeReview({ registrationId: 'review-change', expectedStateVersion: 0, nextState: 'selected',
+      sessionId: 'session-internal', requestId: 'request-internal' })).resolves.toEqual({ kind: 'success', stateVersion: 1 });
+    expect(await client.execute({ sql: `SELECT review_state, participant_response_state, state_version FROM barber_signups WHERE id = ?`, args: ['review-change'] }))
+      .toMatchObject({ rows: [{ review_state: 'selected', participant_response_state: 'not_requested', state_version: 1 }] });
+    expect(await client.execute({ sql: `SELECT action, from_value, to_value, session_id, registration_id, request_id, created_at FROM admin_audit_events WHERE registration_id = ?`, args: ['review-change'] }))
+      .toMatchObject({ rows: [{ action: 'review_state_changed', from_value: 'received', to_value: 'selected', session_id: 'session-internal', registration_id: 'review-change', request_id: 'request-internal', created_at: '2026-09-05T11:00:00.000Z' }] });
+    expect((await createRegistrationReadRepository(client).findById('review-change'))?.receipt?.status).toBe('sent');
+  });
+
+  it('keeps participant response independent and rejects invalid, missing, stale, and no-op writes without audits', async () => {
+    const client = await database();
+    await seedRegistration(client, 'participant-change', '2026-09-05T10:00:00.000Z');
+    const service = createRegistrationManagementService({ repository: createRegistrationLifecycleRepository(client),
+      now: () => '2026-09-05T11:00:00.000Z', createId: () => 'audit-participant-change' });
+    const context = { registrationId: 'participant-change', expectedStateVersion: 0, sessionId: 'session-internal', requestId: 'request-internal' };
+
+    await expect(service.changeReview({ ...context, nextState: 'sent' })).resolves.toEqual({ kind: 'invalid' });
+    await expect(service.changeReview({ ...context, expectedStateVersion: Infinity, nextState: 'selected' })).resolves.toEqual({ kind: 'invalid' });
+    await expect(service.changeReview({ ...context, registrationId: 'missing-registration', nextState: 'selected' })).resolves.toEqual({ kind: 'notfound' });
+    await expect(service.changeParticipantResponse({ ...context, nextState: 'not_requested' })).resolves.toEqual({ kind: 'noop' });
+    await expect(service.changeParticipantResponse({ ...context, nextState: 'confirmed' })).resolves.toEqual({ kind: 'success', stateVersion: 1 });
+    await expect(service.changeReview({ ...context, nextState: 'selected' })).resolves.toEqual({ kind: 'conflict' });
+
+    expect(await client.execute({ sql: `SELECT review_state, participant_response_state, state_version FROM barber_signups WHERE id = ?`, args: ['participant-change'] }))
+      .toMatchObject({ rows: [{ review_state: 'received', participant_response_state: 'confirmed', state_version: 1 }] });
+    expect(await client.execute({ sql: `SELECT action, from_value, to_value FROM admin_audit_events WHERE registration_id = ?`, args: ['participant-change'] }))
+      .toMatchObject({ rows: [{ action: 'participant_response_changed', from_value: 'not_requested', to_value: 'confirmed' }] });
+  });
+
+  it('allows exactly one concurrent versioned write and rolls back a forced audit insert failure', async () => {
+    const client = await database();
+    await seedRegistration(client, 'concurrent-change', '2026-09-05T10:00:00.000Z');
+    const repository = createRegistrationLifecycleRepository(client);
+    const makeService = (auditId: string) => createRegistrationManagementService({ repository, now: () => '2026-09-05T11:00:00.000Z', createId: () => auditId });
+    const input = { registrationId: 'concurrent-change', expectedStateVersion: 0, sessionId: 'session-internal', requestId: 'request-internal' };
+    const outcomes = await Promise.all([makeService('audit-concurrent-one').changeReview({ ...input, nextState: 'selected' }),
+      makeService('audit-concurrent-two').changeReview({ ...input, nextState: 'rejected' })]);
+    expect(outcomes).toEqual(expect.arrayContaining([{ kind: 'success', stateVersion: 1 }, { kind: 'conflict' }]));
+    expect(await client.execute({ sql: `SELECT state_version FROM barber_signups WHERE id = ?`, args: ['concurrent-change'] })).toMatchObject({ rows: [{ state_version: 1 }] });
+    expect(await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events WHERE registration_id = ?`, args: ['concurrent-change'] })).toMatchObject({ rows: [{ count: 1 }] });
+
+    await seedRegistration(client, 'audit-rollback', '2026-09-05T10:00:00.000Z');
+    await client.execute({ sql: `INSERT INTO admin_audit_events (id, session_id, registration_id, action, request_id, created_at)
+      VALUES ('duplicate-audit-id', 'session-internal', 'concurrent-change', 'review_state_changed', 'request-internal', '2026-09-05T11:00:00.000Z')` });
+    await expect(makeService('duplicate-audit-id').changeReview({ registrationId: 'audit-rollback', expectedStateVersion: 0, nextState: 'selected',
+      sessionId: 'session-internal', requestId: 'request-internal' })).resolves.toEqual({ kind: 'safe_unavailable' });
+    expect(await client.execute({ sql: `SELECT review_state, state_version FROM barber_signups WHERE id = ?`, args: ['audit-rollback'] }))
+      .toMatchObject({ rows: [{ review_state: 'received', state_version: 0 }] });
+    expect(await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events WHERE registration_id = ?`, args: ['audit-rollback'] })).toMatchObject({ rows: [{ count: 0 }] });
+  });
+
+  it('writes one audit when same-target races lose on either lifecycle axis', async () => {
+    const client = await database();
+    const repository = createRegistrationLifecycleRepository(client);
+    const runSameTargetRace = async (axis: 'review' | 'participant', registrationId: string, nextState: 'selected' | 'confirmed') => {
+      await seedRegistration(client, registrationId, '2026-09-05T10:00:00.000Z');
+      const makeService = (auditId: string) => createRegistrationManagementService({ repository,
+        now: () => '2026-09-05T11:00:00.000Z', createId: () => auditId });
+      const input = { registrationId, expectedStateVersion: 0, sessionId: 'session-internal' };
+      const change = axis === 'review'
+        ? (service: ReturnType<typeof makeService>, requestId: string) => service.changeReview({ ...input, nextState, requestId })
+        : (service: ReturnType<typeof makeService>, requestId: string) => service.changeParticipantResponse({ ...input, nextState, requestId });
+
+      await expect(Promise.all([
+        change(makeService(`audit-${axis}-one`), `request-${axis}-one`),
+        change(makeService(`audit-${axis}-two`), `request-${axis}-two`),
+      ])).resolves.toEqual(expect.arrayContaining([{ kind: 'success', stateVersion: 1 }, { kind: 'conflict' }]));
+      expect(await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events WHERE registration_id = ?`, args: [registrationId] }))
+        .toMatchObject({ rows: [{ count: 1 }] });
+    };
+
+    await runSameTargetRace('review', 'same-review-target', 'selected');
+    await runSameTargetRace('participant', 'same-participant-target', 'confirmed');
+  });
+
+  it('permits every allowlisted target state while preserving each other lifecycle axis', async () => {
+    const client = await database();
+    const repository = createRegistrationLifecycleRepository(client);
+    let audit = 0;
+    const service = createRegistrationManagementService({ repository, now: () => '2026-09-05T11:00:00.000Z', createId: () => `audit-allowlisted-${audit += 1}` });
+    const reviewTargets = ['received', 'under_review', 'selected', 'rejected', 'withdrawn'] as const;
+    const participantTargets = ['not_requested', 'pending', 'confirmed', 'declined'] as const;
+
+    for (const [index, nextState] of reviewTargets.entries()) {
+      const registrationId = `review-target-${index}`;
+      await seedRegistration(client, registrationId, '2026-09-05T10:00:00.000Z', { reviewState: nextState === 'received' ? 'under_review' : 'received' });
+      await expect(service.changeReview({ registrationId, expectedStateVersion: 0, nextState, sessionId: 'session-internal', requestId: 'request-internal' }))
+        .resolves.toEqual({ kind: 'success', stateVersion: 1 });
+      expect(await repository.findById(registrationId)).toMatchObject({ reviewState: nextState, participantResponseState: 'not_requested', stateVersion: 1 });
+    }
+    for (const [index, nextState] of participantTargets.entries()) {
+      const registrationId = `participant-target-${index}`;
+      await seedRegistration(client, registrationId, '2026-09-05T10:00:00.000Z', { participantState: nextState === 'not_requested' ? 'pending' : 'not_requested' });
+      await expect(service.changeParticipantResponse({ registrationId, expectedStateVersion: 0, nextState, sessionId: 'session-internal', requestId: 'request-internal' }))
+        .resolves.toEqual({ kind: 'success', stateVersion: 1 });
+      expect(await repository.findById(registrationId)).toMatchObject({ reviewState: 'received', participantResponseState: nextState, stateVersion: 1 });
+    }
+    expect(await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events`, args: [] })).toMatchObject({ rows: [{ count: 9 }] });
   });
 });
