@@ -19,7 +19,7 @@ async function findExisting(database: Client, field: 'submission_key' | 'email',
   return result.rows[0] as Existing | undefined ?? null;
 }
 
-export function createSignupOrchestrator(database: Client, notifications = createRegistrationNotificationRepository(database)) {
+export function createSignupOrchestrator(database: Client, notifications = createRegistrationNotificationRepository(database), onNotificationPersistenceFailure: () => void = () => {}) {
   return async (input: SignupInput, submissionKey: string | null, origin: string): Promise<SignupOutcome> => {
     const acceptedFingerprint = fingerprint(input);
     const replay = (existing: Existing | null, conflict: SignupOutcome): SignupOutcome | null =>
@@ -48,6 +48,7 @@ export function createSignupOrchestrator(database: Client, notifications = creat
       await notifications.ensureForRegistration({ registrationId: id, termsVersion: terms.version, mediaUrl: new URL(terms.publicPath, origin).toString(), filename: terms.filename, sha256: terms.sha256 });
     } catch {
       // A durable receipt_required flag keeps this persisted registration reconcilable.
+      onNotificationPersistenceFailure();
     }
     return 'created';
   };

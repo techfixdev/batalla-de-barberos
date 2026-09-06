@@ -85,14 +85,38 @@ describe('signup identity and orchestration', () => {
     expect(form.indexOf('if (!response.ok)')).toBeLessThan(form.lastIndexOf('submissionKey = crypto.randomUUID();'));
   });
 
-  it('concurrently produces one registration, logical notification, and claimed attempt', async () => {
+  it('concurrently persists one registration and pending logical notification when dispatch is disabled', async () => {
     const client = await database();
     const post = createSignupPost({ database: client });
     const key = crypto.randomUUID();
     const responses = await Promise.all([submit(post, payload, key), submit(post, payload, key)]);
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 201]);
     expect((await client.execute('SELECT id FROM barber_signups')).rows).toHaveLength(1);
-    expect((await client.execute('SELECT id FROM receipt_notifications')).rows).toHaveLength(1);
-    expect((await client.execute("SELECT id FROM receipt_notification_attempts WHERE outcome = 'in_progress'")).rows).toHaveLength(1);
+    expect((await client.execute('SELECT status, attempt_count, lease_token FROM receipt_notifications')).rows)
+      .toEqual([{ status: 'pending', attempt_count: 0, lease_token: null }]);
+    expect((await client.execute('SELECT id FROM receipt_notification_attempts')).rows).toEqual([]);
+  });
+
+  it('keeps an initial registration persistence error fatal without a dispatch diagnostic', async () => {
+    const client = await database();
+    const diagnostics: unknown[] = [];
+    await client.execute("CREATE TRIGGER reject_signup BEFORE INSERT ON barber_signups BEGIN SELECT RAISE(ABORT, 'db-secret ana@example.com'); END");
+    try {
+      expect((await submit(createSignupPost({ database: client, diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) }))).status).toBe(500);
+      expect((await client.execute('SELECT id FROM barber_signups')).rows).toEqual([]);
+      expect(diagnostics).toEqual([]);
+    } finally {
+      await client.execute('DROP TRIGGER reject_signup');
+    }
+  });
+
+  it('reports only a static reconciliation diagnostic for notification persistence failure', async () => {
+    const client = await database();
+    const diagnostics: unknown[] = [];
+    const tainted = 'db-secret ana@example.com +5491123456789';
+    const post = createSignupPost({ database: client, notificationRepository: { ensureForRegistration: async () => { throw new Error(tainted); } }, diagnosticSink: (diagnostic) => diagnostics.push(diagnostic) });
+    expect((await submit(post)).status).toBe(201);
+    expect(diagnostics).toEqual([{ event: 'receipt-reconciliation-required', reason: 'notification-persistence-failed' }]);
+    expect(JSON.stringify(diagnostics)).not.toContain(tainted);
   });
 });

@@ -9,11 +9,14 @@ function outcome(result: SendReceiptResult) {
   return { status: result.kind === 'rejected' ? 'failed' as const : 'uncertain' as const, errorCode: safeErrorCode(result.code) };
 }
 
+export type ReceiptDispatchState = 'not-claimed' | 'completed' | 'reconciliation-required';
+
 export function createReceiptService(repository: ReceiptNotificationRepository, messenger: ReceiptMessenger) {
   return {
-    async dispatch(logicalMessageKey: string): Promise<void> {
+    async dispatch(logicalMessageKey: string): Promise<ReceiptDispatchState> {
       const attempt = await repository.claim(logicalMessageKey);
-      if (!attempt || !isValidReceiptDocument(attempt.attachment)) return;
+      if (!attempt) return 'not-claimed';
+      if (!isValidReceiptDocument(attempt.attachment)) return 'reconciliation-required';
       let result: SendReceiptResult;
       try {
         result = await messenger.send({
@@ -23,7 +26,7 @@ export function createReceiptService(repository: ReceiptNotificationRepository, 
       } catch {
         result = { kind: 'uncertain', code: 'PROVIDER_NETWORK' };
       }
-      await repository.complete(attempt, outcome(result));
+      return await repository.complete(attempt, outcome(result)) ? 'completed' : 'reconciliation-required';
     },
   };
 }

@@ -88,11 +88,15 @@ function rejectedStatus(status: number): SendReceiptResult {
   return { kind: 'rejected', code: 'PROVIDER_REJECTED', httpStatus: status };
 }
 
+function mediaRejection(result: string, httpStatus: number): SendReceiptResult {
+  return { kind: 'rejected', code: result === 'media-fetch-failed' ? 'PROVIDER_MEDIA_FETCH_FAILED' : 'PROVIDER_MEDIA_REJECTED', httpStatus };
+}
+
 function configuredJsonRejection(profile: EvolutionDocumentWireProfile, parsed: unknown, status: number): SendReceiptResult | null {
   if (profile.success.mode !== 'json-value') return null;
   const result = valueAtPath(parsed, profile.success.resultPath);
   if (typeof result !== 'string') return null;
-  if (profile.success.mediaRejectedValues.includes(result)) return { kind: 'rejected', code: 'PROVIDER_MEDIA_REJECTED', httpStatus: status };
+  if (profile.success.mediaRejectedValues.includes(result)) return mediaRejection(result, status);
   if (profile.success.urlOnlyValues.includes(result)) return { kind: 'rejected', code: 'PROVIDER_ATTACHMENT_NOT_ACCEPTED', httpStatus: status };
   return null;
 }
@@ -116,7 +120,7 @@ function resultFromResponse(profile: EvolutionDocumentWireProfile, response: Res
   if (profile.success.acceptedValues.includes(result)) {
     return { kind: 'accepted', acceptedArtifact: 'document', evidence: 'document-response-marker', providerMessageId, httpStatus: response.status };
   }
-  if (profile.success.mediaRejectedValues.includes(result)) return { kind: 'rejected', code: 'PROVIDER_MEDIA_REJECTED', httpStatus: response.status };
+  if (profile.success.mediaRejectedValues.includes(result)) return mediaRejection(result, response.status);
   if (profile.success.urlOnlyValues.includes(result)) return { kind: 'rejected', code: 'PROVIDER_ATTACHMENT_NOT_ACCEPTED', httpStatus: response.status };
   return { kind: 'uncertain', code: 'PROVIDER_MALFORMED_RESPONSE', httpStatus: response.status };
 }

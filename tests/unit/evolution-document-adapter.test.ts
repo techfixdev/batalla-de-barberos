@@ -117,6 +117,7 @@ describe('EvolutionDocumentHttpMessenger', () => {
   it.each([
     ['accepted', JSON.stringify({ result: { document: 'accepted', id: 'provider:42' } }), { kind: 'accepted', evidence: 'document-response-marker', providerMessageId: 'provider:42' }],
     ['media-rejected', JSON.stringify({ result: { document: 'media-rejected' } }), { kind: 'rejected', code: 'PROVIDER_MEDIA_REJECTED' }],
+      ['media-fetch-failed', JSON.stringify({ result: { document: 'media-fetch-failed' } }), { kind: 'rejected', code: 'PROVIDER_MEDIA_FETCH_FAILED' }],
     ['URL-only', JSON.stringify({ result: { document: 'url-only' } }), { kind: 'rejected', code: 'PROVIDER_ATTACHMENT_NOT_ACCEPTED' }],
     ['malformed JSON', '{', { kind: 'uncertain', code: 'PROVIDER_MALFORMED_RESPONSE' }],
   ])('maps configured json-value %s evidence without a fallback request', async (_name, body, expected) => {
@@ -125,7 +126,7 @@ describe('EvolutionDocumentHttpMessenger', () => {
     const productionUrls: string[] = [];
     const messenger = new EvolutionDocumentHttpMessenger(validatedConfiguration({
       EVOLUTION_API_SUCCESS_MODE: 'json-value', EVOLUTION_API_RESULT_FIELD_PATH: 'result.document', EVOLUTION_API_ACCEPTED_VALUES: 'accepted',
-      EVOLUTION_API_MEDIA_REJECTED_VALUES: 'media-rejected', EVOLUTION_API_URL_ONLY_VALUES: 'url-only', EVOLUTION_API_MESSAGE_ID_PATH: 'result.id',
+      EVOLUTION_API_MEDIA_REJECTED_VALUES: 'media-rejected,media-fetch-failed', EVOLUTION_API_URL_ONLY_VALUES: 'url-only', EVOLUTION_API_MESSAGE_ID_PATH: 'result.id',
     }), localTransport(server, productionUrls));
 
     await expect(messenger.send(command)).resolves.toMatchObject(expected);
