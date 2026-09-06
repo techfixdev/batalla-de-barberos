@@ -72,6 +72,7 @@ const experienceLabels = {
   const form = requireElementById<HTMLFormElement>('signup-form');
   const status = requireElementById<HTMLParagraphElement>('form-status');
   const fieldNames = ['fullName', 'email', 'phone', 'barbershop', 'experience', 'acceptedRules'] as const;
+  let submissionKey = crypto.randomUUID();
 
   function control(name: typeof fieldNames[number]): HTMLInputElement | HTMLSelectElement {
     const item = form.elements.namedItem(name);
@@ -114,7 +115,7 @@ const experienceLabels = {
     try {
       const response = await fetch('/api/signups', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': submissionKey },
         body: JSON.stringify(payload),
       });
       const result = await response.json() as { message?: string; errors?: Record<string, string> };
@@ -135,6 +136,7 @@ const experienceLabels = {
         return;
       }
 
+      submissionKey = crypto.randomUUID();
       form.reset();
       status.textContent = 'Guardamos tu inscripción. Intentaremos enviarte un acuse por WhatsApp con el PDF adjunto; si no lo recibís, no invalida la inscripción guardada. La selección la decide más adelante la organización y la respuesta posterior de la persona participante se registra por separado. El acuse no constituye consentimiento legal ni confirma selección o participación.';
     } catch {
