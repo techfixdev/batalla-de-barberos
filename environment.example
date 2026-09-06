@@ -1,3 +1,32 @@
-# Copy these values into your local .env file.
+# Copy to .env for local work. Replace every placeholder outside source control.
+# Keep dispatch disabled in local and preview environments.
 TURSO_DATABASE_URL=libsql://your-database.turso.io
-TURSO_AUTH_TOKEN=your-database-auth-token
+TURSO_AUTH_TOKEN=replace-with-turso-token
+ADMIN_PASSWORD_HASH=generate-with-pnpm-admin:password-hash
+ADMIN_SESSION_SECRET_B64=replace-with-random-base64-secret-at-least-32-bytes
+CANONICAL_SITE_ORIGIN=https://your-production-domain.example
+WHATSAPP_DISPATCH_ENABLED=false
+EVOLUTION_API_BASE_URL=https://evolution.example
+EVOLUTION_API_INSTANCE=replace-with-instance-name
+EVOLUTION_API_KEY=replace-with-evolution-api-key
+EVOLUTION_API_SEND_DOCUMENT_PATH_TEMPLATE=/message/sendMedia/{instance}
+EVOLUTION_API_AUTH_HEADER=apikey
+EVOLUTION_API_AUTH_SCHEME=raw
+EVOLUTION_API_DESTINATION_FIELD_PATH=number
+EVOLUTION_API_MEDIA_URL_FIELD_PATH=media
+EVOLUTION_API_FILENAME_FIELD_PATH=fileName
+EVOLUTION_API_MIME_TYPE_FIELD_PATH=mimetype
+EVOLUTION_API_CAPTION_FIELD_PATH=caption
+EVOLUTION_API_MEDIA_KIND_FIELD_PATH=
+EVOLUTION_API_MEDIA_KIND_VALUE=
+EVOLUTION_API_DESTINATION_FORMAT=e164
+EVOLUTION_API_ACCEPTED_HTTP_STATUSES=200
+EVOLUTION_API_SUCCESS_MODE=json-value
+EVOLUTION_API_RESULT_FIELD_PATH=status
+EVOLUTION_API_ACCEPTED_VALUES=accepted-document
+EVOLUTION_API_MEDIA_REJECTED_VALUES=media-rejected
+EVOLUTION_API_URL_ONLY_VALUES=url-only
+EVOLUTION_API_MESSAGE_ID_PATH=id
+EVOLUTION_API_IDEMPOTENCY_HEADER=
+EVOLUTION_API_TIMEOUT_MS=7000
+EVOLUTION_API_VALIDATED_PROFILE_SHA256=replace-with-validated-non-secret-profile-fingerprint
