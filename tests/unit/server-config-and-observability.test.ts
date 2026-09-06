@@ -159,7 +159,8 @@ describe('server configuration and observability', () => {
     ]));
     expect(middleware).toContain("'Cache-Control': 'private, no-store'");
     expect(middleware).toContain("'X-Frame-Options': 'DENY'");
-    expect(middleware).toContain("'Referrer-Policy': 'no-referrer'");
+    expect(middleware).toContain("const API_REFERRER_POLICY = 'no-referrer'");
+    expect(middleware).toContain("const HTML_REFERRER_POLICY = 'same-origin'");
   });
 
   it('links local setup to canonical safe operations instead of a two-variable migration shortcut', async () => {

@@ -51,6 +51,8 @@ describe('admin route security', () => {
     expect(await html.text()).not.toContain('protected content');
     expect(api.status).toBe(401);
     expect(await api.json()).toEqual({ message: 'No autorizado.' });
+    expect(html.headers.get('referrer-policy')).toBe('same-origin');
+    expect(api.headers.get('referrer-policy')).toBe('no-referrer');
     expect(htmlNext).not.toHaveBeenCalled();
     expect(apiNext).not.toHaveBeenCalled();
   });
@@ -96,7 +98,9 @@ describe('admin route security', () => {
     const middleware = createAdminMiddleware({ sessionSecretB64: SECRET, resolveSession });
     const request = context('/api/admin/registrations', cookie);
 
-    expect((await middleware(request, next())).status).toBe(200);
+    const response = await middleware(request, next());
+    expect(response.status).toBe(200);
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
     expect(resolveSession).toHaveBeenCalledExactlyOnceWith(cookie);
     expect(request.locals).toEqual({ adminSession: { id: 'session-2', expiresAt: '2026-04-19T08:00:00.000Z' }, adminCsrfToken: Buffer.alloc(32, 2).toString('base64url') });
   });
@@ -118,7 +122,7 @@ describe('admin route security', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
-    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('referrer-policy')).toBe('same-origin');
     expect(response.headers.get('x-original')).toBe('preserved');
   });
 
@@ -155,7 +159,7 @@ describe('admin route security', () => {
       expect(response.status).toBe(400);
       expect(response.headers.get('cache-control')).toBe('private, no-store');
       expect(response.headers.get('x-frame-options')).toBe('DENY');
-      expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+      expect(response.headers.get('referrer-policy')).toBe('same-origin');
       expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
       expect(await response.text()).not.toContain('protected content');
       expect(passThrough).not.toHaveBeenCalled();

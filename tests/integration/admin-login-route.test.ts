@@ -45,7 +45,14 @@ describe('admin login route', () => {
     const post = createAdminLoginPost({ database: client, passwordHash: PASSWORD_HASH, sessionSecretB64: SECRET, now: () => NOW, throttle, sessions });
 
     const preauth = proof();
-    for (const input of [request({ password: 'wrong' }), request({ password: 'wrong', preauth: preauth.value }, `bdb_admin_preauth=${preauth.value}`, { headers: { Origin: 'https://evil.example.test' } })]) {
+    const missingOrigin = request({ password: 'wrong', preauth: preauth.value }, `bdb_admin_preauth=${preauth.value}`);
+    missingOrigin.headers.delete('origin');
+    for (const input of [
+      request({ password: 'wrong' }),
+      missingOrigin,
+      request({ password: 'wrong', preauth: preauth.value }, `bdb_admin_preauth=${preauth.value}`, { headers: { Origin: 'null' } }),
+      request({ password: 'wrong', preauth: preauth.value }, `bdb_admin_preauth=${preauth.value}`, { headers: { Origin: 'https://evil.example.test' } }),
+    ]) {
       const response = await post(input);
       expect(response.status).toBe(403);
       expect(await response.text()).toBe('Solicitud no válida.');

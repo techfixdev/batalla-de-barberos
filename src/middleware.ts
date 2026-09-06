@@ -7,9 +7,10 @@ const LOGIN_PATHS = new Set(['/admin/login', '/api/admin/login']);
 const MAX_PATH_DECODES = 2;
 const SECURITY_HEADERS = {
   'Cache-Control': 'private, no-store',
-  'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
 };
+const API_REFERRER_POLICY = 'no-referrer';
+const HTML_REFERRER_POLICY = 'same-origin';
 
 type Context = Readonly<{ request: Request; url: URL; locals: App.Locals }>;
 type Next = () => Promise<Response>;
@@ -43,10 +44,11 @@ function sessionCookie(request: Request): string | null {
   return entry?.slice(name.length + 1) || null;
 }
 
-function protect(response: Response): Response {
+function protect(response: Response, api = false): Response {
   const headers = new Headers(response.headers);
   headers.append('Content-Security-Policy', "frame-ancestors 'none'");
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
+  headers.set('Referrer-Policy', api ? API_REFERRER_POLICY : HTML_REFERRER_POLICY);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -58,7 +60,7 @@ function denied(context: Context, api: boolean): Response {
   if (api) {
     return protect(new Response(JSON.stringify({ message: 'No autorizado.' }), {
       status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    }));
+    }), true);
   }
   return protect(Response.redirect(new URL('/admin/login', context.url), 302));
 }
@@ -87,7 +89,7 @@ export function createAdminMiddleware({ sessionSecretB64 = import.meta.env.ADMIN
       if (!session) return denied(context, route.api);
       context.locals.adminSession = { id: session.id, expiresAt: session.expiresAt };
       context.locals.adminCsrfToken = verified.tokens.csrfToken;
-      return protect(await next());
+      return protect(await next(), route.api);
     } catch {
       return denied(context, route.api);
     }

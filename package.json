@@ -12,6 +12,7 @@
     "migrate": "node scripts/migrate.mjs",
     "admin:password-hash": "node scripts/generate-admin-password-hash.mjs",
     "test": "vitest run",
+    "test:browser": "playwright test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.5",
+    "@playwright/test": "^1.63.0",
     "@vitest/coverage-v8": "3.2.4",
     "typescript": "^5.9.3",
     "vitest": "3.2.4"

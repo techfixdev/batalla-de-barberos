@@ -91,6 +91,7 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(new URL(unauthenticated.headers.get('location')!, origin).pathname).toBe('/admin/login');
 
     const loginPage = await fetch(`${origin}/admin/login`, { redirect: 'manual' });
+    expect(loginPage.headers.get('referrer-policy')).toBe('same-origin');
     const preauth = /name="preauth" value="([^"]+)"/.exec(await loginPage.text())?.[1];
     expect(preauth).toEqual(expect.any(String));
     const preauthCookie = setCookie(loginPage, 'bdb_admin_preauth');
@@ -100,6 +101,7 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     });
     expect(login.status).toBe(303);
     expect(login.headers.get('location')).toBe('/admin');
+    expect(login.headers.get('referrer-policy')).toBe('no-referrer');
     const sessionCookie = setCookie(login, 'bdb_admin');
 
     const list = await fetch(`${origin}/admin`, { headers: { Cookie: sessionCookie } });
@@ -181,6 +183,7 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(filtered.headers.get('cache-control')).toBe('private, no-store');
     expect(filtered.headers.get('x-frame-options')).toBe('DENY');
     expect(filtered.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    expect(filtered.headers.get('referrer-policy')).toBe('same-origin');
     expect(filteredHtml).toContain('Revisión de inscripción');
     expect(filteredHtml).toContain('Respuesta del participante');
     expect(filteredHtml).toContain('Acuse documental por WhatsApp');

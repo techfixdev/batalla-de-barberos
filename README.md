@@ -27,6 +27,16 @@ Independent Astro website for **Entre Cortes — Batalla de Barberos**, a barber
    pnpm dev
    ```
 
+## Browser regression tests
+
+Run the native admin-form regression against the disposable local database with:
+
+```sh
+pnpm test:browser
+```
+
+The runner uses an installed Chromium or Chrome when available. If neither is installed, provision Playwright's official headless Chromium in its normal user cache with `pnpm exec playwright install chromium`, then rerun the command. The test never targets production or injects an `Origin` header.
+
 ## Environment variables
 
 [Operación segura](#operación-segura) is the canonical list of server variables and release steps. Keep secrets server-only; local and preview environments retain `WHATSAPP_DISPATCH_ENABLED=false`.
