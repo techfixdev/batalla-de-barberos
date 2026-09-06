@@ -1,0 +1,133 @@
+---
+import RegistrationStates from '../../../components/admin/RegistrationStates.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDatabase } from '../../../lib/database';
+import { presentRegistration } from '../../../lib/server/admin/registration-presentation';
+import { createRegistrationReadRepository, type RegistrationDetail } from '../../../lib/server/admin/registration-read-repository';
+
+const reviewOptions = [
+  ['received', 'Recibida'], ['under_review', 'En revisión'], ['selected', 'Seleccionada'], ['rejected', 'No seleccionada'], ['withdrawn', 'Retirada'],
+] as const;
+const participantOptions = [
+  ['not_requested', 'No solicitada'], ['pending', 'Pendiente'], ['confirmed', 'Confirmada'], ['declined', 'Rechazada'],
+] as const;
+const auditActions = {
+  review_state_changed: 'Revisión de inscripción',
+  participant_response_changed: 'Respuesta del participante',
+} as const;
+const receiptOutcomes = {
+  in_progress: 'En curso', sent: 'Documento aceptado por el proveedor', failed: 'Fallido', uncertain: 'Resultado incierto',
+} as const;
+
+function safeHttpsUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function auditLabel(action: string, value: string | null) {
+  if (!value || !(action in auditActions)) return 'No disponible';
+  const options = action === 'review_state_changed' ? reviewOptions : participantOptions;
+  return options.find(([key]) => key === value)?.[1] ?? 'No disponible';
+}
+
+let registration: RegistrationDetail | null = null;
+let unavailable = false;
+try {
+  registration = await createRegistrationReadRepository(getDatabase()).findById(Astro.params.id ?? '');
+} catch {
+  unavailable = true;
+}
+
+if (unavailable) Astro.response.status = 503;
+else if (!registration) Astro.response.status = 404;
+---
+
+<AdminLayout csrfToken={Astro.locals.adminCsrfToken}>
+  {unavailable ? <section class="admin-detail" aria-labelledby="detail-title">
+    <h1 id="detail-title">Servicio no disponible</h1>
+    <p class="admin-message" role="alert">No se pudo consultar la inscripción.</p>
+  </section> : !registration ? <section class="admin-detail" aria-labelledby="detail-title">
+    <h1 id="detail-title">Inscripción no encontrada</h1>
+    <p class="admin-message" role="alert">No existe una inscripción recibida con ese identificador.</p>
+    <a class="admin-back" href="/admin">Volver a las inscripciones recibidas</a>
+  </section> : (() => {
+    const view = presentRegistration(registration);
+    const documentUrl = registration.receipt && safeHttpsUrl(registration.receipt.mediaUrl);
+    return <section class="admin-detail" aria-labelledby="detail-title">
+      <a class="admin-back" href="/admin">Volver a las inscripciones recibidas</a>
+      <p class="eyebrow">Inscripción recibida</p>
+      <h1 id="detail-title">{registration.fullName}</h1>
+      <dl class="admin-detail-list">
+        <div><dt>Correo electrónico</dt><dd>{registration.email}</dd></div>
+        <div><dt>Teléfono</dt><dd>{view.phone}</dd></div>
+        <div><dt>Fecha de inscripción</dt><dd><time datetime={registration.createdAt}>{registration.createdAt}</time></dd></div>
+        <div><dt>Versión de bases</dt><dd>{registration.termsVersion ?? 'No disponible (registro anterior)'}</dd></div>
+      </dl>
+
+      <section aria-labelledby="states-title">
+        <h2 id="states-title">Estados de esta inscripción</h2>
+        <RegistrationStates registration={view} />
+        <p class="admin-note">La respuesta del participante registra una respuesta humana posterior; no confirma la entrega del acuse documental.</p>
+      </section>
+
+      <section aria-labelledby="receipt-title">
+        <h2 id="receipt-title">Acuse documental</h2>
+        {registration.receipt ? <>
+          <dl class="admin-detail-list">
+            <div><dt>Versión del documento</dt><dd>{registration.receipt.termsVersion}</dd></div>
+            <div><dt>Archivo</dt><dd>{documentUrl ? <a href={documentUrl}>Abrir PDF de bases</a> : 'Enlace no disponible'}</dd></div>
+            <div><dt>Intentos registrados</dt><dd>{registration.receipt.attemptCount}</dd></div>
+            <div><dt>Último intento</dt><dd>{registration.receipt.lastAttemptAt ? <time datetime={registration.receipt.lastAttemptAt}>{registration.receipt.lastAttemptAt}</time> : 'Sin intentos'}</dd></div>
+            <div><dt>Aceptación del proveedor</dt><dd>{registration.receipt.sentAt ? <time datetime={registration.receipt.sentAt}>{registration.receipt.sentAt}</time> : 'No registrada'}</dd></div>
+            {registration.receipt.lastErrorCode && <div><dt>Diagnóstico seguro</dt><dd>{registration.receipt.lastErrorCode}: {registration.receipt.lastErrorMessage}</dd></div>}
+          </dl>
+          {registration.receipt.attempts.length > 0 && <ol class="admin-history" aria-label="Historial de intentos de acuse">
+            {registration.receipt.attempts.map((attempt) => <li><strong>{receiptOutcomes[attempt.outcome as keyof typeof receiptOutcomes] ?? 'Estado no disponible'}</strong><br />
+              <time datetime={attempt.startedAt}>{attempt.startedAt}</time>{attempt.completedAt && <> · <time datetime={attempt.completedAt}>{attempt.completedAt}</time></>}
+              {attempt.errorCode && <><br />Diagnóstico seguro: {attempt.errorCode}</>}
+            </li>)}
+          </ol>}
+        </> : <p class="admin-note">No hay un acuse documental asociado a esta inscripción.</p>}
+      </section>
+
+      <section class="admin-lifecycle-forms" aria-labelledby="actions-title">
+        <h2 id="actions-title">Actualizar estados</h2>
+        <form action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/review-state`} method="post">
+          <h3>Revisión de inscripción</h3>
+          <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+          <input type="hidden" name="stateVersion" value={registration.stateVersion} />
+          <label for="review-state">Nuevo estado de revisión</label>
+          <select id="review-state" name="reviewState">
+            {reviewOptions.map(([value, label]) => <option value={value} selected={registration.reviewState === value}>{label}</option>)}
+          </select>
+          <button type="submit">Guardar revisión</button>
+        </form>
+        <form action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/participant-response`} method="post">
+          <h3>Respuesta del participante</h3>
+          <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+          <input type="hidden" name="stateVersion" value={registration.stateVersion} />
+          <label for="participant-response">Nueva respuesta del participante</label>
+          <select id="participant-response" name="participantResponse">
+            {participantOptions.map(([value, label]) => <option value={value} selected={registration.participantResponseState === value}>{label}</option>)}
+          </select>
+          <button type="submit">Guardar respuesta</button>
+        </form>
+        <p class="admin-note">No se guarda un cambio si se selecciona el estado actual; el servidor también rechaza esa solicitud.</p>
+      </section>
+
+      <section aria-labelledby="audit-title">
+        <h2 id="audit-title">Historial de auditoría</h2>
+        {registration.auditEvents.length === 0 ? <p class="admin-note">No hay cambios de estado registrados.</p> : <ol class="admin-history">
+          {registration.auditEvents.map((event) => <li><strong>{auditActions[event.action as keyof typeof auditActions] ?? 'Cambio de estado'}</strong><br />
+            {auditLabel(event.action, event.fromValue)} → {auditLabel(event.action, event.toValue)}<br />
+            <time datetime={event.createdAt}>{event.createdAt}</time>
+          </li>)}
+        </ol>}
+      </section>
+    </section>;
+  })()}
+</AdminLayout>

@@ -54,6 +54,14 @@ async function seed(client: Client) {
       });
     }
   }
+  await client.execute(`UPDATE receipt_notifications SET media_url = 'javascript:alert(1)' WHERE id = 'receipt-registration-03'`);
+  await client.execute(`UPDATE barber_signups SET review_state = 'under_review', state_version = 1 WHERE id = 'registration-02'`);
+  await client.execute(`INSERT INTO receipt_notification_attempts (id, notification_id, attempt_no, attempt_key, trigger, outcome, error_code,
+    error_message, started_at, completed_at) VALUES ('attempt-registration-02', 'receipt-registration-02', 1, 'attempt-key-02',
+    'automatic', 'failed', 'PROVIDER_TIMEOUT', 'raw provider secret', '2026-09-05T10:00:00.000Z', '2026-09-05T10:01:00.000Z')`);
+  await client.execute(`INSERT INTO admin_audit_events (id, session_id, registration_id, action, from_value, to_value, request_id, created_at)
+    VALUES ('audit-initial-02', NULL, 'registration-02', 'review_state_changed', 'received', 'under_review',
+    'request-internal', '2026-09-05T09:00:00.000Z')`);
 }
 
 
@@ -98,6 +106,70 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(listHtml).toContain('52 inscripciones recibidas');
     expect(listHtml).toContain('No disponible (registro anterior)');
 
+    const detail = await fetch(`${origin}/admin/inscripciones/registration-02`, { headers: { Cookie: sessionCookie } });
+    const detailHtml = await detail.text();
+    expect(detail.status).toBe(200);
+    expect(detailHtml).toContain('Revisión de inscripción');
+    expect(detailHtml).toContain('Respuesta del participante');
+    expect(detailHtml).toContain('Acuse documental por WhatsApp');
+    expect(detailHtml).toContain('https://batalla.test/bases.pdf');
+    expect(detailHtml).toContain('2026-09-05T10:00:00.000Z');
+    expect(detailHtml).toContain('PROVIDER_TIMEOUT');
+    expect(detailHtml).not.toContain('raw provider secret');
+    expect(detailHtml).toContain('name="reviewState"');
+    expect(detailHtml).toContain('name="participantResponse"');
+    expect(detailHtml).toContain('name="stateVersion" value="1"');
+    const csrf = /name="csrf" value="([^"]+)"/.exec(detailHtml)?.[1];
+    expect(csrf).toEqual(expect.any(String));
+
+    const invalidCsrf = await fetch(`${origin}/api/admin/registrations/registration-02/review-state`, {
+      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf: 'invalid', stateVersion: '1', reviewState: 'selected' }),
+    });
+    expect(invalidCsrf.status).toBe(403);
+
+    const review = await fetch(`${origin}/api/admin/registrations/registration-02/review-state`, {
+      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf: csrf!, stateVersion: '1', reviewState: 'selected' }),
+    });
+    expect(review.status).toBe(303);
+    expect(review.headers.get('location')).toBe('/admin/inscripciones/registration-02');
+
+    const updated = await fetch(`${origin}/admin/inscripciones/registration-02`, { headers: { Cookie: sessionCookie } });
+    const updatedHtml = await updated.text();
+    expect(updatedHtml).toContain('Seleccionada');
+    expect(updatedHtml).toContain('name="stateVersion" value="2"');
+    const staleParticipant = await fetch(`${origin}/api/admin/registrations/registration-02/participant-response`, {
+      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf: csrf!, stateVersion: '1', participantResponse: 'confirmed' }),
+    });
+    expect(staleParticipant.status).toBe(409);
+    const participant = await fetch(`${origin}/api/admin/registrations/registration-02/participant-response`, {
+      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf: csrf!, stateVersion: '2', participantResponse: 'confirmed' }),
+    });
+    expect(participant.status).toBe(303);
+    expect((await client.execute(`SELECT review_state, participant_response_state, state_version FROM barber_signups WHERE id = 'registration-02'`)).rows)
+      .toEqual([{ review_state: 'selected', participant_response_state: 'confirmed', state_version: 3 }]);
+    expect((await client.execute(`SELECT action, from_value, to_value FROM admin_audit_events WHERE registration_id = 'registration-02' ORDER BY created_at`)).rows)
+      .toEqual([
+        { action: 'review_state_changed', from_value: 'received', to_value: 'under_review' },
+        { action: 'review_state_changed', from_value: 'under_review', to_value: 'selected' },
+        { action: 'participant_response_changed', from_value: 'not_requested', to_value: 'confirmed' },
+      ]);
+    const xssDetail = await fetch(`${origin}/admin/inscripciones/registration-51`, { headers: { Cookie: sessionCookie } });
+    expect(await xssDetail.text()).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    const pendingDetail = await fetch(`${origin}/admin/inscripciones/registration-01`, { headers: { Cookie: sessionCookie } });
+    expect(await pendingDetail.text()).toContain('Acuse documental pendiente');
+    const uncertainDetail = await fetch(`${origin}/admin/inscripciones/registration-03`, { headers: { Cookie: sessionCookie } });
+    const uncertainHtml = await uncertainDetail.text();
+    expect(uncertainHtml).toContain('Estado del acuse incierto');
+    expect(uncertainHtml).toContain('Enlace no disponible');
+    expect(uncertainHtml).not.toContain('href="javascript:');
+    const historicalDetail = await fetch(`${origin}/admin/inscripciones/registration-52`, { headers: { Cookie: sessionCookie } });
+    expect(await historicalDetail.text()).toContain('No hay un acuse documental asociado a esta inscripción.');
+    expect((await fetch(`${origin}/admin/inscripciones/expected-person`, { headers: { Cookie: sessionCookie } })).status).toBe(404);
+
     const filtered = await fetch(`${origin}/admin?attention=1`, { headers: { Cookie: sessionCookie } });
     const filteredHtml = await filtered.text();
     expect(filtered.status).toBe(200);
@@ -125,14 +197,18 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(second.status).toBe(200);
     expect(secondIds).toEqual(['registration-01']);
     expect(secondIds.some((id) => firstIds.includes(id))).toBe(false);
+    await client.execute(`UPDATE receipt_notifications SET status = 'sent' WHERE id = 'receipt-registration-04'`);
+    const sentDetail = await fetch(`${origin}/admin/inscripciones/registration-04`, { headers: { Cookie: sessionCookie } });
+    expect(await sentDetail.text()).toContain('Documento aceptado por el proveedor; entrega no verificada');
 
+    await client.execute('DELETE FROM receipt_notification_attempts');
     await client.execute('DELETE FROM receipt_notifications');
     await client.execute('DELETE FROM barber_signups');
     const empty = await fetch(`${origin}/admin`, { headers: { Cookie: sessionCookie } });
     expect(await empty.text()).toContain('Todavía no hay inscripciones recibidas');
 
-    const csrf = /name="csrf" value="([^"]+)"/.exec(filteredHtml)?.[1];
-    const logout = await fetch(`${origin}/api/admin/logout`, { method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf: csrf! }) });
+    const logoutCsrf = /name="csrf" value="([^"]+)"/.exec(filteredHtml)?.[1];
+    const logout = await fetch(`${origin}/api/admin/logout`, { method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf: logoutCsrf! }) });
     expect(logout.status).toBe(303);
     expect((await fetch(`${origin}/admin`, { redirect: 'manual', headers: { Cookie: sessionCookie } })).status).toBe(302);
   } finally {
