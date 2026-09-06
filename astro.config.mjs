@@ -6,5 +6,6 @@ export default defineConfig({
   adapter: vercel(),
   security: {
     checkOrigin: true,
+    allowedDomains: [{ protocol: 'https', hostname: 'batalladebarberos.com.ar' }],
   },
 });
