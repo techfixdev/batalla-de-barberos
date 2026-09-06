@@ -40,3 +40,7 @@ export function isValidReceiptDocument(value: unknown): value is ReceiptDocument
 export function safeErrorCode(value: string): SafeErrorCode {
   return (SAFE_ERROR_CODES as readonly string[]).includes(value) ? value as SafeErrorCode : 'PROVIDER_REJECTED';
 }
+
+export function safeProviderMessageId(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Za-z0-9._:-]{1,200}$/.test(value) ? value : null;
+}

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { Client } from '@libsql/client';
 
-import { isValidReceiptDocument, type ReceiptDocument, type SafeErrorCode } from './contracts';
+import { isValidReceiptDocument, safeErrorCode, safeProviderMessageId, type ReceiptDocument, type SafeErrorCode } from './contracts';
 import { createReceiptCaption } from './receipt-caption';
 
 type ReceiptInput = Readonly<{
@@ -20,7 +20,7 @@ type Completion = Readonly<{
 export type RegistrationNotificationRepository = Readonly<{ ensureForRegistration(input: ReceiptInput): Promise<void> }>;
 export type ReceiptNotificationRepository = RegistrationNotificationRepository & Readonly<{
   claim(logicalMessageKey: string): Promise<ClaimedAttempt | null>;
-  complete(attempt: ClaimedAttempt, completion: Completion): Promise<void>;
+  complete(attempt: ClaimedAttempt, completion: Completion): Promise<boolean>;
 }>;
 
 export const deriveLogicalMessageKey = (registrationId: string, termsVersion: string) =>
@@ -52,8 +52,8 @@ export function createReceiptNotificationRepository(database: Client): ReceiptNo
       const keyForAttempt = randomUUID(), expiresAt = new Date(Date.now() + 12_000).toISOString();
       const claims = await database.batch([
         { sql: `UPDATE receipt_notifications SET attempt_count = ?, lease_token = ?, lease_expires_at = ?, last_attempt_at = ?, updated_at = ?
-          WHERE id = ? AND status IN ('pending', 'failed', 'uncertain') AND (lease_expires_at IS NULL OR lease_expires_at <= ?)`,
-          args: [number, leaseToken, expiresAt, now, now, String(row.id), now] },
+          WHERE id = ? AND attempt_count = ? AND status IN ('pending', 'failed', 'uncertain') AND (lease_expires_at IS NULL OR lease_expires_at <= ?)`,
+          args: [number, leaseToken, expiresAt, now, now, String(row.id), Number(row.attempt_count), now] },
         { sql: `INSERT INTO receipt_notification_attempts (id, notification_id, attempt_no, attempt_key, trigger, outcome, started_at)
           SELECT ?, id, ?, ?, 'automatic', 'in_progress', ? FROM receipt_notifications WHERE id = ? AND lease_token = ?`,
           args: [randomUUID(), number, keyForAttempt, now, String(row.id), leaseToken] },
@@ -64,13 +64,23 @@ export function createReceiptNotificationRepository(database: Client): ReceiptNo
     },
     async complete(attempt, completion) {
       const now = new Date().toISOString();
+      const providerMessageId = safeProviderMessageId(completion.providerMessageId);
+      const errorCode = completion.errorCode ? safeErrorCode(completion.errorCode) : null;
+      const errorMessage = errorCode ? PROVIDER_ERROR_MESSAGE : null;
       const updates = await database.batch([
-        { sql: `UPDATE receipt_notifications SET status = ?, provider_message_id = ?, last_error_code = ?, last_error_message = ?, sent_at = ?, lease_token = NULL, lease_expires_at = NULL, updated_at = ? WHERE id = ? AND lease_token = ?`,
-          args: [completion.status, completion.providerMessageId ?? null, completion.errorCode ?? null, completion.errorCode ? PROVIDER_ERROR_MESSAGE : null, completion.status === 'sent' ? now : null, now, attempt.notificationId, attempt.leaseToken] },
-        { sql: `UPDATE receipt_notification_attempts SET outcome = ?, provider_message_id = ?, acceptance_evidence = ?, error_code = ?, error_message = ?, completed_at = ? WHERE notification_id = ? AND attempt_key = ? AND outcome = 'in_progress'`,
-          args: [completion.status, completion.providerMessageId ?? null, completion.evidence ?? null, completion.errorCode ?? null, completion.errorCode ? PROVIDER_ERROR_MESSAGE : null, now, attempt.notificationId, attempt.attemptKey] },
+        { sql: `UPDATE receipt_notifications SET status = ?, provider_message_id = ?, last_error_code = ?, last_error_message = ?, sent_at = ?, lease_token = NULL, lease_expires_at = NULL, updated_at = ?
+          WHERE id = ? AND lease_token = ? AND status IN ('pending', 'failed', 'uncertain') AND lease_expires_at > ?
+            AND EXISTS (SELECT 1 FROM receipt_notification_attempts WHERE notification_id = ? AND attempt_key = ? AND outcome = 'in_progress')`,
+          args: [completion.status, providerMessageId, errorCode, errorMessage, completion.status === 'sent' ? now : null, now,
+            attempt.notificationId, attempt.leaseToken, now, attempt.notificationId, attempt.attemptKey] },
+        { sql: `UPDATE receipt_notification_attempts SET outcome = ?, provider_message_id = ?, acceptance_evidence = ?, error_code = ?, error_message = ?, completed_at = ?
+          WHERE notification_id = ? AND attempt_key = ? AND outcome = 'in_progress'
+            AND EXISTS (SELECT 1 FROM receipt_notifications WHERE id = ? AND status = ? AND lease_token IS NULL
+              AND lease_expires_at IS NULL AND updated_at = ?)`,
+          args: [completion.status, providerMessageId, completion.evidence ?? null, errorCode, errorMessage, now,
+            attempt.notificationId, attempt.attemptKey, attempt.notificationId, completion.status, now] },
       ], 'write');
-      if (updates[0]?.rowsAffected !== 1 || updates[1]?.rowsAffected !== 1) throw new Error('Receipt attempt completion is ambiguous.');
+      return updates[0]?.rowsAffected === 1 && updates[1]?.rowsAffected === 1;
     },
   };
 }
