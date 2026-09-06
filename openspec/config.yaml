@@ -1,0 +1,37 @@
+# OpenSpec project configuration for Batalla de Barberos
+project:
+  name: batalla-de-barberos
+  root: /home/charlydev/Projects/DEV/batalla-de-barberos
+  language: TypeScript
+  framework: Astro 5 (server output)
+  architecture: Server-rendered Astro application with file-based pages/API routes, progressive enhancement, Turso/libSQL persistence, and Vercel deployment.
+
+artifact_store: openspec
+strict_tdd: true
+
+phase_rules:
+  init: Inspect the repository stack, architecture, conventions, existing documentation, and realistic validation commands; create only project context.
+  proposal: Define scope, constraints, and acceptance intent before design.
+  design: Document interfaces, data flow, security, operational concerns, and legal-review boundaries.
+  tasks: Break approved design into independently verifiable implementation tasks.
+  apply: Implement only approved tasks with tests or validation evidence.
+  verify: Run the repository validation commands and report uncovered risks.
+
+validation:
+  package_manager: pnpm
+  runtime: Node.js >=20
+  commands:
+    install: pnpm install
+    typecheck: pnpm check
+    build: pnpm build
+    migration: pnpm migrate
+  test_runner: none configured
+  notes: pnpm check and pnpm build are the primary automated validations; no dedicated unit or integration test script exists.
+
+upcoming_change_context:
+  summary: Add a simple password-protected admin panel for barber registrations and automatic WhatsApp confirmation with a PDF of formal contest terms.
+  whatsapp_constraint: Use a self-hosted Evolution API, Baileys, WPPConnect-style provider; do not use Google authentication, Meta Cloud API, or Twilio.
+  legal_constraint: Draft formal terms from existing categories and rules, and mark them for legal review before publication.
+  delivery_strategy: ask-on-risk
+  review_budget_lines: 400
+  chain_strategy: deferred
