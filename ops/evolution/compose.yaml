@@ -1,0 +1,80 @@
+name: bdb-evolution
+
+services:
+  api:
+    image: evoapicloud/evolution-api:v2.3.7@sha256:1bd8afc4a6cf48822e6cf02469aeae7bd35a12a6b616eacd1291926307f4d339
+    restart: unless-stopped
+    mem_limit: 1536m
+    ports:
+      - "${EVOLUTION_BIND_IP:?EVOLUTION_BIND_IP is required}:18081:8080"
+    environment:
+      SERVER_URL: "${EVOLUTION_SERVER_URL:?EVOLUTION_SERVER_URL is required}"
+      SERVER_PORT: "8080"
+      AUTHENTICATION_API_KEY: "${EVOLUTION_API_KEY:?EVOLUTION_API_KEY is required}"
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: "postgresql://evolution:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/evolution?schema=evolution_api"
+      DATABASE_CONNECTION_CLIENT_NAME: bdb_evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_TTL: "604800"
+      CACHE_REDIS_PREFIX_KEY: bdb_evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - egress
+      - backend
+
+  postgres:
+    image: postgres:15-alpine@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: unless-stopped
+    mem_limit: 256m
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+
+networks:
+  egress:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+
+volumes:
+  evolution_instances:
+  postgres_data:
+  redis_data:
