@@ -1737,3 +1737,55 @@ Parent-owned rows remain byte-for-byte unchanged: R2 legal/content approval, R3 
 - A filename-only inspection confirms the private tunnel-token file exists. Its existence does not establish scanner coverage, and no credential value was printed by the parent.
 - The automatic release chain is paused after the corrective verification failed. Correct the scanner's coverage handling before resuming; do not request replacement credentials or infer a credential leak from this result.
 - No Vercel configuration, domain attachment, production deployment, or dispatch activation occurred during this pre-deployment step.
+
+## 2026-09-06 — R5 factual closure evidence (parent-native lifecycle remains owned)
+
+### Structured status consumed
+
+```yaml
+schemaName: gentle-ai.sdd-status@2
+changeName: add-admin-whatsapp-confirmation
+artifactStore: openspec
+applyState: ready
+planningArtifacts: done
+taskProgress: { complete: 30, total: 32, pending: [R5, R6] }
+actionContext: { mode: repo-local, workspaceRoot: /home/charlydev/Projects/DEV/batalla-de-barberos, allowedEditRoots: [/home/charlydev/Projects/DEV/batalla-de-barberos] }
+delivery: { strategy: auto-chain, chain: stacked-to-main, reviewBudgetLines: 400 }
+nextRecommended: apply
+warnings: ["R5 native attempt, settlement, delivery gates, and lifecycle checkboxes remain parent-owned."]
+```
+
+### Held R5 closure evidence
+
+- This evidence records the parent-held successful R5 outcome; this actor did not acquire or settle an attempt, review, commit, push, deploy, message, access secrets, or run a runtime test.
+- The 22 approved delivery commits span `283b8a3` through `73345ec`, followed by host-fix `eab2f164f39416468d3f9f4339f5e74d1516e8d0`; `main` is 34 commits ahead and has not been pushed. The four preserved historical size exceptions are 452, 401, 525, and 1,728 lines.
+- Parent-held fresh independent validation records 187 tests across 23 files, `pnpm check` across 86 files with 0 issues, build, and diff checks passing under Node 22; the Astro 5.18.2 `allowedDomains` correction is 88 lines and includes a real Node app regression. These are cited results, not commands run by this documentation-only slice.
+- The source-coverage-first secret review covered 13 source fields and 6 derived values; 33 outgoing trees/177 blobs and index/worktree scans (120 each) had no matches. This does not claim universal secret absence, does not assert seven derived values, and records collector bugs as corrected methodology rather than release evidence.
+- Production uses 30 encrypted Vercel keys and Node 22. Deployment was disabled at `73345ec`, then the host fix was deployed; the private local-safe profile intentionally keeps dispatch false while production dispatch is true. Future secret-manager work is deferred and is not a release blocker.
+- Canonical public routing is apex-only DNS `A 216.150.1.1` with verified TLS. API host and tunnel were untouched; no `www`, mail, or NS change occurred.
+- The canonical disabled-dispatch smoke recorded unauthenticated `302` then `401`, secure login `303`, admin `200`, missing/invalid CSRF `403`, one synthetic signup `201`, logout `303` with cleared cookie followed by `302`/`401`, and PDF `GET`/`HEAD` `200` with PDF MIME, immutable cache, and stored-hash match. It is a technical test record, not a real participant record, and is retained without deletion.
+- After activation, the remote dispatch path used the fresh same-commit deployment and canonical alias. Exactly one matching idempotent replay returned `200`, with registration, notification, and attempt counts each remaining one; accepted document evidence, an allowlisted provider ID, and sent state were present with zero resends. No phone number, email, provider ID, cookie, credential, or secret is recorded here.
+- The user explicitly confirmed final PDF receipt/opening: “Sí, llegó y abre”. This confirms the specified controlled document outcome only; it does not claim selection, participation, legal consent, or general delivery guarantees.
+- The legal draft limitations approved at R2 remain unchanged: no professional legal review or new legal approval is claimed.
+
+### Parent-owned gate disposition
+
+- **R5:** the parent has reconciled and checked the release gate after validating the recorded operational evidence and the recipient's explicit arrival/opening confirmation. Native settlement remains a separate parent-owned operation.
+- **R6:** **N/A — disabled/unmanaged** under the explicit user-owned review-mode disposition. No bounded reviewer ran, no approval receipt or code acceptance exists, and the original focus (persistence-before-dispatch, mandatory attachment, secret redaction, migration compatibility, and no roster/absent-person inference) remains optional future review work. Its checkbox remains unchecked.
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R5 evidence record | N/A | Documentation only | No production or test file changed | N/A | N/A | N/A | N/A |
+
+### Files, scope, and remaining exact pending rows
+
+- Changed only `openspec/changes/add-admin-whatsapp-confirmation/tasks.md` and this cumulative progress record; no test results were fabricated or newly produced.
+- Documentation delta is below the 100-line correction limit. No deviation from the approved design was introduced.
+- [x] **[R5 — controlled deployment]** Parent-confirmed canonical security/signup/PDF smoke, exactly one accepted document attempt, and explicit recipient arrival/opening confirmation. <!-- sdd-owner: parent -->
+- [ ] **[R6 — bounded post-apply review; depends on: R5]** Start or reuse bounded review focused on persistence-before-dispatch, mandatory attachment semantics, secret redaction, migration compatibility, and the absence of roster/absent-person inference; record unresolved operational or legal findings separately from code acceptance. <!-- sdd-owner: parent -->
+
+### Workload / PR boundary
+
+Evidence-only R5 closure documentation, within the parent-selected `auto-chain`/`stacked-to-main` delivery context; no implementation PR boundary, review, receipt, or lifecycle action was created by this actor.
