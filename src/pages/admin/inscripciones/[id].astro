@@ -18,6 +18,9 @@ const auditActions = {
 const receiptOutcomes = {
   in_progress: 'En curso', sent: 'Documento aceptado por el proveedor', failed: 'Fallido', uncertain: 'Resultado incierto',
 } as const;
+const receiptTriggers = {
+  automatic: 'Intento automático', admin_retry: 'Reintento administrativo', admin_reconcile: 'Conciliación administrativa',
+} as const;
 
 function safeHttpsUrl(value: string): string | null {
   try {
@@ -32,6 +35,10 @@ function auditLabel(action: string, value: string | null) {
   if (!value || !(action in auditActions)) return 'No disponible';
   const options = action === 'review_state_changed' ? reviewOptions : participantOptions;
   return options.find(([key]) => key === value)?.[1] ?? 'No disponible';
+}
+
+function stalePending(receipt: RegistrationDetail['receipt']) {
+  return receipt?.status === 'pending' && !!receipt.leaseExpiresAt && Date.parse(receipt.leaseExpiresAt) <= Date.now();
 }
 
 let registration: RegistrationDetail | null = null;
@@ -57,6 +64,7 @@ else if (!registration) Astro.response.status = 404;
   </section> : (() => {
     const view = presentRegistration(registration);
     const documentUrl = registration.receipt && safeHttpsUrl(registration.receipt.mediaUrl);
+    const staleReceipt = stalePending(registration.receipt);
     return <section class="admin-detail" aria-labelledby="detail-title">
       <a class="admin-back" href="/admin">Volver a las inscripciones recibidas</a>
       <p class="eyebrow">Inscripción recibida</p>
@@ -83,15 +91,41 @@ else if (!registration) Astro.response.status = 404;
             <div><dt>Intentos registrados</dt><dd>{registration.receipt.attemptCount}</dd></div>
             <div><dt>Último intento</dt><dd>{registration.receipt.lastAttemptAt ? <time datetime={registration.receipt.lastAttemptAt}>{registration.receipt.lastAttemptAt}</time> : 'Sin intentos'}</dd></div>
             <div><dt>Aceptación del proveedor</dt><dd>{registration.receipt.sentAt ? <time datetime={registration.receipt.sentAt}>{registration.receipt.sentAt}</time> : 'No registrada'}</dd></div>
+            {registration.receipt.leaseExpiresAt && <div><dt>Vencimiento de la reserva</dt><dd><time datetime={registration.receipt.leaseExpiresAt}>{registration.receipt.leaseExpiresAt}</time></dd></div>}
             {registration.receipt.lastErrorCode && <div><dt>Diagnóstico seguro</dt><dd>{registration.receipt.lastErrorCode}: {registration.receipt.lastErrorMessage}</dd></div>}
           </dl>
           {registration.receipt.attempts.length > 0 && <ol class="admin-history" aria-label="Historial de intentos de acuse">
-            {registration.receipt.attempts.map((attempt) => <li><strong>{receiptOutcomes[attempt.outcome as keyof typeof receiptOutcomes] ?? 'Estado no disponible'}</strong><br />
+            {registration.receipt.attempts.map((attempt) => <li><strong>{receiptTriggers[attempt.trigger]} — {receiptOutcomes[attempt.outcome as keyof typeof receiptOutcomes] ?? 'Estado no disponible'}</strong><br />
               <time datetime={attempt.startedAt}>{attempt.startedAt}</time>{attempt.completedAt && <> · <time datetime={attempt.completedAt}>{attempt.completedAt}</time></>}
               {attempt.errorCode && <><br />Diagnóstico seguro: {attempt.errorCode}</>}
             </li>)}
           </ol>}
-        </> : <p class="admin-note">No hay un acuse documental asociado a esta inscripción.</p>}
+          {staleReceipt && <p class="admin-message" role="alert">Pendiente vencido — resultado incierto. Primero resolvé el intento vencido; no se enviará otro documento automáticamente.</p>}
+          {registration.receipt.status === 'failed' && <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/receipt/retry`} method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+            <button type="submit">Reintentar acuse documental</button>
+          </form>}
+          {registration.receipt.status === 'uncertain' && <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/receipt/retry`} method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+            <p class="admin-note">El proveedor podría haber aceptado el documento; reenviar puede duplicarlo.</p>
+            <label><input type="checkbox" name="ackUncertain" value="1" /> Entiendo el riesgo de un envío duplicado.</label>
+            <button type="submit">Reintentar acuse documental</button>
+          </form>}
+          {staleReceipt && <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/receipt/reconcile`} method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+            <button type="submit">Resolver intento vencido</button>
+          </form>}
+          {registration.receipt.status === 'pending' && registration.receipt.attemptCount === 0 && !staleReceipt && <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/receipt/reconcile`} method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+            <button type="submit">Crear/enviar acuse pendiente</button>
+          </form>}
+        </> : <>
+          <p class="admin-note">No hay un acuse documental asociado a esta inscripción.</p>
+          {registration.receiptRequired && <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/receipt/reconcile`} method="post">
+            <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+            <button type="submit">Crear/enviar acuse pendiente</button>
+          </form>}
+        </>}
       </section>
 
       <section class="admin-lifecycle-forms" aria-labelledby="actions-title">

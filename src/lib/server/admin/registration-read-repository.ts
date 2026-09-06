@@ -15,8 +15,8 @@ export type RegistrationReadRecord = Readonly<{
   id: string; fullName: string; email: string; phoneE164: string | null; createdAt: string; termsVersion: string | null;
   reviewState: ReviewState; participantResponseState: ParticipantResponseState; receiptRequired: boolean; stateVersion: number;
   receipt: Readonly<{ id: string; termsVersion: string; status: ReceiptStatus; attemptCount: number; mediaUrl: string; mediaFilename: string;
-    mediaMimeType: 'application/pdf'; lastErrorCode: SafeErrorCode | null; lastErrorMessage: string | null; lastAttemptAt: string | null; sentAt: string | null;
-    attempts: readonly Readonly<{ outcome: string; startedAt: string; completedAt: string | null; errorCode: SafeErrorCode | null; errorMessage: string | null }>[] }> | null;
+    mediaMimeType: 'application/pdf'; lastErrorCode: SafeErrorCode | null; lastErrorMessage: string | null; lastAttemptAt: string | null; sentAt: string | null; leaseExpiresAt: string | null;
+    attempts: readonly Readonly<{ trigger: 'automatic' | 'admin_retry' | 'admin_reconcile'; outcome: string; startedAt: string; completedAt: string | null; errorCode: SafeErrorCode | null; errorMessage: string | null }>[] }> | null;
 }>;
 export type RegistrationDetail = RegistrationReadRecord & Readonly<{ auditEvents: readonly Readonly<{ action: string; fromValue: string | null; toValue: string | null; createdAt: string }>[] }>;
 export type RegistrationReadRepository = Readonly<{
@@ -89,7 +89,8 @@ function record(row: Row | undefined): RegistrationReadRecord | null {
     ? { id: row.receipt_id as string, termsVersion: row.receipt_terms_version, status: row.receipt_status as ReceiptStatus, attemptCount: Number(row.attempt_count),
       mediaUrl: row.media_url, mediaFilename: row.media_filename, mediaMimeType: 'application/pdf' as const,
       lastErrorCode: receiptError.code, lastErrorMessage: receiptError.message,
-      lastAttemptAt: typeof row.last_attempt_at === 'string' ? row.last_attempt_at : null, sentAt: typeof row.sent_at === 'string' ? row.sent_at : null, attempts: [] } : null;
+      lastAttemptAt: typeof row.last_attempt_at === 'string' ? row.last_attempt_at : null, sentAt: typeof row.sent_at === 'string' ? row.sent_at : null,
+      leaseExpiresAt: typeof row.lease_expires_at === 'string' ? row.lease_expires_at : null, attempts: [] } : null;
   return { id: row.id, fullName: row.full_name, email: row.email, phoneE164: typeof row.phone_e164 === 'string' ? row.phone_e164 : null,
     createdAt: row.created_at, termsVersion: typeof row.terms_version === 'string' ? row.terms_version : null, reviewState,
     participantResponseState, receiptRequired: row.receipt_required === 1, stateVersion: Number(row.state_version), receipt };
@@ -98,7 +99,7 @@ function record(row: Row | undefined): RegistrationReadRecord | null {
 const projection = `SELECT b.id, b.full_name, b.email, b.phone_e164, b.created_at, b.terms_version, b.review_state,
   b.participant_response_state, b.receipt_required, b.state_version, n.id AS receipt_id, n.terms_version AS receipt_terms_version,
   n.status AS receipt_status, n.attempt_count, n.media_url, n.media_filename, n.media_mime_type, n.last_error_code,
-  n.last_error_message, n.last_attempt_at, n.sent_at FROM barber_signups b LEFT JOIN receipt_notifications n
+  n.last_error_message, n.last_attempt_at, n.sent_at, n.lease_expires_at FROM barber_signups b LEFT JOIN receipt_notifications n
   ON n.registration_id = b.id AND n.terms_version = b.terms_version`;
 
 export function createRegistrationReadRepository(database: Client): RegistrationReadRepository {
@@ -124,15 +125,16 @@ export function createRegistrationReadRepository(database: Client): Registration
       const value = record(result.rows[0] as Row | undefined);
       if (!value) return null;
       const [attemptRows, auditRows] = await Promise.all([
-        value.receipt ? database.execute({ sql: `SELECT outcome, started_at, completed_at, error_code, error_message FROM receipt_notification_attempts
+        value.receipt ? database.execute({ sql: `SELECT trigger, outcome, started_at, completed_at, error_code, error_message FROM receipt_notification_attempts
           WHERE notification_id = ? ORDER BY attempt_no DESC`, args: [value.receipt.id] }) : Promise.resolve({ rows: [] }),
         database.execute({ sql: `SELECT action, from_value, to_value, created_at FROM admin_audit_events WHERE registration_id = ?
           AND action IN ('review_state_changed', 'participant_response_changed') ORDER BY created_at DESC`, args: [id] }),
       ]);
-      const attempts = attemptRows.rows.map((row) => row as Row).filter((row) => typeof row.outcome === 'string' && typeof row.started_at === 'string').map((row) => {
+      const attempts = attemptRows.rows.map((row) => row as Row).filter((row) => typeof row.trigger === 'string' && ['automatic', 'admin_retry', 'admin_reconcile'].includes(row.trigger)
+        && typeof row.outcome === 'string' && typeof row.started_at === 'string').map((row) => {
         const attemptError = diagnostic(row.error_code);
-        return { outcome: row.outcome as string, startedAt: row.started_at as string, completedAt: typeof row.completed_at === 'string' ? row.completed_at : null,
-          errorCode: attemptError.code, errorMessage: attemptError.message };
+        return { trigger: row.trigger as 'automatic' | 'admin_retry' | 'admin_reconcile', outcome: row.outcome as string, startedAt: row.started_at as string,
+          completedAt: typeof row.completed_at === 'string' ? row.completed_at : null, errorCode: attemptError.code, errorMessage: attemptError.message };
       });
       const auditEvents = auditRows.rows.map((row) => row as Row).filter((row) => typeof row.action === 'string'
         && (AUDIT_ACTIONS as readonly string[]).includes(row.action) && typeof row.created_at === 'string').map((row) => {

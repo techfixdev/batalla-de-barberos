@@ -1,7 +1,11 @@
 import { createClient, type Client } from '@libsql/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createReceiptRecoveryService } from '../../src/lib/server/admin/receipt-recovery-service';
+import { signAdminSessionCookie } from '../../src/lib/server/admin/session-crypto';
+import { sha256 } from '../../src/lib/server/admin/session-repository';
+import { createReceiptReconcileRoute } from '../../src/pages/api/admin/registrations/[id]/receipt/reconcile';
+import { createReceiptRetryRoute } from '../../src/pages/api/admin/registrations/[id]/receipt/retry';
 import type { ReceiptMessenger, SendReceiptCommand } from '../../src/lib/server/notifications/contracts';
 import { createReceiptNotificationRepository } from '../../src/lib/server/notifications/registration-receipts';
 import { createRegistrationRepository } from '../../src/lib/server/registrations/repository';
@@ -145,5 +149,56 @@ describe('admin receipt recovery', () => {
     release();
     await expect(Promise.all([winner, loser])).resolves.toEqual([{ kind: 'accepted' }, { kind: 'conflict' }]);
     expect((await other.execute('SELECT count(*) AS count FROM barber_signups')).rows).toEqual([{ count: 1 }]);
+  });
+
+  // 3.3c: route bridge verifies the authenticated form before recovery policy is invoked.
+  describe('authenticated recovery routes', () => {
+    const formSecret = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    const formCsrf = Buffer.alloc(32, 3).toString('base64url');
+    const formCookie = signAdminSessionCookie({ sessionToken: Buffer.alloc(32, 4).toString('base64url'), csrfToken: formCsrf }, formSecret)!;
+    const session = { id: 'recovery-session', tokenHash: 'irrelevant', csrfHash: sha256(formCsrf), createdAt: '2026-09-01T00:00:00.000Z', expiresAt: '2026-10-01T00:00:00.000Z', revokedAt: null };
+    const locals = { adminSession: { id: session.id, expiresAt: session.expiresAt }, adminCsrfToken: formCsrf };
+    const request = (path: string, fields: readonly (readonly [string, string])[], origin = 'https://admin.example.test') => new Request(`https://admin.example.test${path}`, {
+      method: 'POST', headers: { Origin: origin, Cookie: `bdb_admin=${formCookie}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields.map(([name, value]) => [name, value])),
+    });
+    const route = (factory: typeof createReceiptRetryRoute, outcome: any = { kind: 'accepted' }) => {
+      const service = { retry: vi.fn(async () => outcome), reconcile: vi.fn(async () => outcome) };
+      return { service, handle: factory({ sessionSecretB64: formSecret, sessions: { findByTokenHash: async () => session }, service }) };
+    };
+
+    it('rejects invalid CSRF and strict recovery fields before service calls, then redirects only accepted retry', async () => {
+      const retry = route(createReceiptRetryRoute);
+      const invalid = await retry.handle({ request: request('/api/admin/registrations/recovery-1/receipt/retry', [['csrf', 'wrong']]), params: { id: 'recovery-1' }, locals });
+      expect(invalid.status).toBe(403);
+      const extra = await retry.handle({ request: request('/api/admin/registrations/recovery-1/receipt/retry', [['csrf', formCsrf], ['ackUncertain', '1'], ['unexpected', '1']]), params: { id: 'recovery-1' }, locals });
+      expect(extra.status).toBe(400);
+      expect(retry.service.retry).not.toHaveBeenCalled();
+
+      const accepted = await retry.handle({ request: request('/api/admin/registrations/recovery-1/receipt/retry', [['csrf', formCsrf], ['ackUncertain', '1']]), params: { id: 'recovery-1' }, locals });
+      expect(accepted.status).toBe(303);
+      expect(accepted.headers.get('location')).toBe('/admin/inscripciones/recovery-1');
+      expect(retry.service.retry).toHaveBeenCalledWith({ registrationId: 'recovery-1', ackUncertain: '1' });
+    });
+
+    it('allows an omitted acknowledgement for failed candidates but never accepts it on reconcile or cross-origin requests', async () => {
+      const retry = route(createReceiptRetryRoute);
+      const failed = await retry.handle({ request: request('/api/admin/registrations/recovery-1/receipt/retry', [['csrf', formCsrf]]), params: { id: 'recovery-1' }, locals });
+      expect(failed.status).toBe(303);
+      expect(retry.service.retry).toHaveBeenCalledWith({ registrationId: 'recovery-1' });
+      const foreign = await retry.handle({ request: request('/api/admin/registrations/recovery-1/receipt/retry', [['csrf', formCsrf]], 'https://other.example.test'), params: { id: 'recovery-1' }, locals });
+      expect(foreign.status).toBe(403);
+      const reconcile = route(createReceiptReconcileRoute as typeof createReceiptRetryRoute);
+      const extra = await reconcile.handle({ request: request('/api/admin/registrations/recovery-1/receipt/reconcile', [['csrf', formCsrf], ['ackUncertain', '1']]), params: { id: 'recovery-1' }, locals });
+      expect(extra.status).toBe(400);
+      expect(reconcile.service.reconcile).not.toHaveBeenCalled();
+    });
+
+    it.each([['conflict', 409], ['notfound', 404], ['invalid', 400], ['unavailable', 503]] as const)('maps %s without raw service details', async (kind, status) => {
+      const reconcile = route(createReceiptReconcileRoute as typeof createReceiptRetryRoute, { kind });
+      const response = await reconcile.handle({ request: request('/api/admin/registrations/recovery-1/receipt/reconcile', [['csrf', formCsrf]]), params: { id: 'recovery-1' }, locals });
+      expect(response.status).toBe(status);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(await response.text()).not.toContain(kind);
+    });
   });
 });

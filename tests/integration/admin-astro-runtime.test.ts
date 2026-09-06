@@ -116,6 +116,8 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(detailHtml).toContain('2026-09-05T10:00:00.000Z');
     expect(detailHtml).toContain('PROVIDER_TIMEOUT');
     expect(detailHtml).not.toContain('raw provider secret');
+    expect(detailHtml).toContain('Intento automático');
+    expect(detailHtml).toContain('Reintentar acuse documental');
     expect(detailHtml).toContain('name="reviewState"');
     expect(detailHtml).toContain('name="participantResponse"');
     expect(detailHtml).toContain('name="stateVersion" value="1"');
@@ -127,7 +129,6 @@ it('renders the protected submitted-registration list through local Astro HTTP o
       body: new URLSearchParams({ csrf: 'invalid', stateVersion: '1', reviewState: 'selected' }),
     });
     expect(invalidCsrf.status).toBe(403);
-
     const review = await fetch(`${origin}/api/admin/registrations/registration-02/review-state`, {
       method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: sessionCookie, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ csrf: csrf!, stateVersion: '1', reviewState: 'selected' }),
@@ -164,6 +165,8 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     const uncertainDetail = await fetch(`${origin}/admin/inscripciones/registration-03`, { headers: { Cookie: sessionCookie } });
     const uncertainHtml = await uncertainDetail.text();
     expect(uncertainHtml).toContain('Estado del acuse incierto');
+    expect(uncertainHtml).toContain('El proveedor podría haber aceptado el documento; reenviar puede duplicarlo.');
+    expect(uncertainHtml).toContain('name="ackUncertain" value="1"');
     expect(uncertainHtml).toContain('Enlace no disponible');
     expect(uncertainHtml).not.toContain('href="javascript:');
     const historicalDetail = await fetch(`${origin}/admin/inscripciones/registration-52`, { headers: { Cookie: sessionCookie } });
@@ -199,7 +202,10 @@ it('renders the protected submitted-registration list through local Astro HTTP o
     expect(secondIds.some((id) => firstIds.includes(id))).toBe(false);
     await client.execute(`UPDATE receipt_notifications SET status = 'sent' WHERE id = 'receipt-registration-04'`);
     const sentDetail = await fetch(`${origin}/admin/inscripciones/registration-04`, { headers: { Cookie: sessionCookie } });
-    expect(await sentDetail.text()).toContain('Documento aceptado por el proveedor; entrega no verificada');
+    const sentHtml = await sentDetail.text();
+    expect(sentHtml).toContain('Documento aceptado por el proveedor; entrega no verificada');
+    expect(sentHtml).not.toContain('Reintentar acuse documental');
+    expect(sentHtml).not.toContain('Crear/enviar acuse pendiente');
 
     await client.execute('DELETE FROM receipt_notification_attempts');
     await client.execute('DELETE FROM receipt_notifications');
