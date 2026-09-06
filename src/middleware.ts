@@ -78,12 +78,15 @@ export function createAdminMiddleware({ sessionSecretB64 = import.meta.env.ADMIN
 
     const cookie = sessionCookie(context.request);
     const secret = sessionSecretB64;
-    if (!cookie || !secret || !verifyAdminSessionCookie(cookie, secret).valid) return denied(context, route.api);
+    if (!cookie || !secret) return denied(context, route.api);
+    const verified = verifyAdminSessionCookie(cookie, secret);
+    if (!verified.valid) return denied(context, route.api);
 
     try {
       const session = await (resolveSession ?? ((value) => resolveLiveSession(value, secret)))(cookie);
       if (!session) return denied(context, route.api);
       context.locals.adminSession = { id: session.id, expiresAt: session.expiresAt };
+      context.locals.adminCsrfToken = verified.tokens.csrfToken;
       return protect(await next());
     } catch {
       return denied(context, route.api);

@@ -1,5 +1,5 @@
 import { createClient, type Client } from '@libsql/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createRegistrationLifecycleRepository } from '../../src/lib/server/admin/registration-lifecycle-repository';
 import { createRegistrationManagementService } from '../../src/lib/server/admin/registration-management-service';
@@ -256,5 +256,70 @@ describe('submitted-registration-only admin read model', () => {
       expect(await repository.findById(registrationId)).toMatchObject({ reviewState: 'received', participantResponseState: nextState, stateVersion: 1 });
     }
     expect(await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events`, args: [] })).toMatchObject({ rows: [{ count: 9 }] });
+  });
+});
+
+import { signAdminSessionCookie } from '../../src/lib/server/admin/session-crypto';
+import { sha256 } from '../../src/lib/server/admin/session-repository';
+import { createParticipantResponseRoute } from '../../src/pages/api/admin/registrations/[id]/participant-response';
+import { createReviewStateRoute } from '../../src/pages/api/admin/registrations/[id]/review-state';
+
+const FORM_SECRET = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+const FORM_CSRF = Buffer.alloc(32, 9).toString('base64url');
+const FORM_COOKIE = signAdminSessionCookie({ sessionToken: Buffer.alloc(32, 7).toString('base64url'), csrfToken: FORM_CSRF }, FORM_SECRET)!;
+const formSession = { id: 'session-form', csrfHash: sha256(FORM_CSRF), createdAt: '2026-09-01T00:00:00.000Z', expiresAt: '2026-10-01T00:00:00.000Z', revokedAt: null };
+
+type FormRoute = ReturnType<typeof createReviewStateRoute>;
+function formRequest(fields: readonly (readonly [string, string])[], origin = 'https://admin.example.test') {
+  return new Request('https://admin.example.test/api/admin/registrations/registration-1/review-state', {
+    method: 'POST', headers: { Origin: origin, Cookie: `bdb_admin=${FORM_COOKIE}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields.map(([name, value]) => [name, value])),
+  });
+}
+function route(factory: (options: any) => FormRoute, outcome: any = { kind: 'success', stateVersion: 1 }, session = formSession) {
+  const service = { changeReview: vi.fn(async () => outcome), changeParticipantResponse: vi.fn(async () => outcome) };
+  return { service, handle: factory({ sessionSecretB64: FORM_SECRET, sessions: { findByTokenHash: async () => session }, service, createRequestId: () => 'request-form' }) };
+}
+
+// 3.2c: direct route contracts keep auth/form parsing outside lifecycle persistence.
+describe('authenticated lifecycle form routes', () => {
+  it('updates only the requested axis and returns an encoded detail PRG redirect', async () => {
+    const review = route(createReviewStateRoute), participant = route(createParticipantResponseRoute);
+    const locals = { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF };
+    const reviewResponse = await review.handle({ request: formRequest([['csrf', FORM_CSRF], ['stateVersion', '0'], ['reviewState', 'selected']]), params: { id: 'registration-1' }, locals });
+    const participantResponse = await participant.handle({ request: formRequest([['csrf', FORM_CSRF], ['stateVersion', '0'], ['participantResponse', 'confirmed']]), params: { id: 'registration-1' }, locals });
+    expect(reviewResponse.status).toBe(303); expect(reviewResponse.headers.get('location')).toBe('/admin/inscripciones/registration-1');
+    expect(participantResponse.status).toBe(303); expect(review.service.changeReview).toHaveBeenCalledOnce(); expect(review.service.changeParticipantResponse).not.toHaveBeenCalled();
+    expect(participant.service.changeParticipantResponse).toHaveBeenCalledOnce(); expect(participant.service.changeReview).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing csrf', [['stateVersion', '0'], ['reviewState', 'selected']], 'https://admin.example.test', 403],
+    ['cross-origin', [['csrf', FORM_CSRF], ['stateVersion', '0'], ['reviewState', 'selected']], 'https://other.example.test', 403],
+    ['duplicate field', [['csrf', FORM_CSRF], ['stateVersion', '0'], ['stateVersion', '0'], ['reviewState', 'selected']], 'https://admin.example.test', 400],
+    ['cross axis', [['csrf', FORM_CSRF], ['stateVersion', '0'], ['participantResponse', 'confirmed']], 'https://admin.example.test', 400],
+    ['noncanonical version', [['csrf', FORM_CSRF], ['stateVersion', '00'], ['reviewState', 'selected']], 'https://admin.example.test', 400],
+  ] as const)('rejects %s before lifecycle mutation or audit', async (_name, fields, origin, status) => {
+    const tested = route(createReviewStateRoute); const response = await tested.handle({ request: formRequest(fields, origin), params: { id: 'registration-1' }, locals: { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF } });
+    expect(response.status).toBe(status); expect(tested.service.changeReview).not.toHaveBeenCalled(); expect(await response.text()).not.toContain(FORM_CSRF);
+  });
+
+  it.each([[{ ...formSession, csrfHash: sha256('wrong') }, 403], [{ ...formSession, id: 'another-session' }, 401]] as const)('rejects persisted csrf or middleware-session mismatches without raw errors', async (session, status) => {
+    const tested = route(createReviewStateRoute, { kind: 'safe_unavailable' }, session);
+    const response = await tested.handle({ request: formRequest([['csrf', FORM_CSRF], ['stateVersion', '0'], ['reviewState', 'selected']]), params: { id: 'registration-1' }, locals: { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF } });
+    expect(response.status).toBe(status); expect(tested.service.changeReview).not.toHaveBeenCalled(); expect(await response.text()).not.toContain('safe_unavailable');
+  });
+
+  it.each([['conflict', 409], ['noop', 400], ['notfound', 404], ['invalid', 400], ['safe_unavailable', 503]] as const)('maps safe %s outcomes without leaking diagnostics', async (kind, status) => {
+    const tested = route(createReviewStateRoute, { kind }); const response = await tested.handle({ request: formRequest([['csrf', FORM_CSRF], ['stateVersion', '0'], ['reviewState', 'selected']]), params: { id: 'registration-1' }, locals: { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF } });
+    expect(response.status).toBe(status); expect(response.headers.get('cache-control')).toBe('private, no-store'); expect(await response.text()).not.toContain(kind);
+  });
+});
+
+describe('authenticated lifecycle form storage outage', () => {
+  it('returns only a static 503 before a lifecycle write when the live-session lookup fails', async () => {
+    const service = { changeReview: vi.fn(), changeParticipantResponse: vi.fn() };
+    const handle = createReviewStateRoute({ sessionSecretB64: FORM_SECRET, sessions: { findByTokenHash: async () => { throw new Error('database password leaked'); } }, service });
+    const response = await handle({ request: formRequest([['csrf', FORM_CSRF], ['stateVersion', '0'], ['reviewState', 'selected']]), params: { id: 'registration-1' }, locals: { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF } });
+    expect(response.status).toBe(503); expect(service.changeReview).not.toHaveBeenCalled(); expect(await response.text()).toBe('Servicio no disponible.');
   });
 });

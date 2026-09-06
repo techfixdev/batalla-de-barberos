@@ -7,5 +7,6 @@ interface ImportMetaEnv {
 declare namespace App {
   interface Locals {
     adminSession?: Readonly<{ id: string; expiresAt: string }>;
+    adminCsrfToken?: string;
   }
 }

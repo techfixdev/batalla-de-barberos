@@ -98,7 +98,7 @@ describe('admin route security', () => {
 
     expect((await middleware(request, next())).status).toBe(200);
     expect(resolveSession).toHaveBeenCalledExactlyOnceWith(cookie);
-    expect(request.locals).toEqual({ adminSession: { id: 'session-2', expiresAt: '2026-04-19T08:00:00.000Z' } });
+    expect(request.locals).toEqual({ adminSession: { id: 'session-2', expiresAt: '2026-04-19T08:00:00.000Z' }, adminCsrfToken: Buffer.alloc(32, 2).toString('base64url') });
   });
 
   it('uses a real migrated local session service, places only allowlisted data in locals, and protects successful responses', async () => {
@@ -113,7 +113,7 @@ describe('admin route security', () => {
     const response = await middleware(request, protectedNext);
 
     expect(response.status).toBe(200);
-    expect(request.locals).toEqual({ adminSession: { id: expect.any(String), expiresAt: '2026-04-19T08:00:00.000Z' } });
+    expect(request.locals).toMatchObject({ adminSession: { id: expect.any(String), expiresAt: '2026-04-19T08:00:00.000Z' }, adminCsrfToken: expect.any(String) });
     expect(JSON.stringify(request.locals)).not.toContain(created.cookie);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.get('x-frame-options')).toBe('DENY');
@@ -204,5 +204,19 @@ describe('admin route security', () => {
     now = new Date('2026-04-19T00:00:00.000Z');
     expect(await service.revoke(created.cookie)).toBe(true);
     expect((await middleware(context('/admin', created.cookie), next())).status).toBe(302);
+  });
+});
+
+describe('middleware authenticated form locals', () => {
+  it('exposes only the verified csrf field after a live session resolves', async () => {
+    const sessionToken = Buffer.alloc(32, 12).toString('base64url');
+    const csrfToken = Buffer.alloc(32, 13).toString('base64url');
+    const signed = signAdminSessionCookie({ sessionToken, csrfToken }, SECRET)!;
+    const request = context('/admin', signed);
+    const response = await createAdminMiddleware({ sessionSecretB64: SECRET, resolveSession: async () => ({ id: 'session-form-local', expiresAt: '2026-04-19T08:00:00.000Z' }) })(request, next());
+    expect(response.status).toBe(200);
+    expect(request.locals).toEqual({ adminSession: { id: 'session-form-local', expiresAt: '2026-04-19T08:00:00.000Z' }, adminCsrfToken: csrfToken });
+    expect(JSON.stringify(request.locals)).not.toContain(signed);
+    expect(JSON.stringify(request.locals)).not.toContain(sessionToken);
   });
 });
