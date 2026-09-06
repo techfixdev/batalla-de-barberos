@@ -159,6 +159,24 @@ describe('signup receipt dispatch outcomes', () => {
     expect(server.requests).toHaveLength(1);
   });
 
+  it.each([
+    ['failed', { body: JSON.stringify({ result: { document: 'media-rejected' } }) }, 'failed'],
+    ['uncertain', { status: 503, body: '{}' }, 'uncertain'],
+  ])('does not automatically send or add an attempt on a replay after %s dispatch', async (_name, response, status) => {
+    const client = await database();
+    const server = await fixture();
+    server.respond(response);
+    const post = createSignupPost({ database: client, receiptMessenger: localMessenger(readyConfiguration(), server), dispatchConfiguration: readyConfiguration() });
+    const key = crypto.randomUUID();
+
+    expect((await submit(post, key)).status).toBe(201);
+    expect((await submit(post, key)).status).toBe(200);
+    expect(await receipt(client)).toMatchObject({ status, attempt_count: 1 });
+    expect((await client.execute('SELECT trigger, outcome FROM receipt_notification_attempts')).rows)
+      .toEqual([{ trigger: 'automatic', outcome: status }]);
+    expect(server.requests).toHaveLength(1);
+  });
+
   it('reports a static lookup diagnostic without sending or exposing the lookup error', async () => {
     const client = await database();
     const diagnostics: unknown[] = [];

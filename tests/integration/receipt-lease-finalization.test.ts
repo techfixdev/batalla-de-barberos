@@ -64,26 +64,68 @@ describe('receipt lease-owned finalization', () => {
     expect((await client.execute('SELECT status FROM receipt_notifications')).rows).toEqual([{ status: 'sent' }]);
   });
 
-  it('does not let a stale lease owner mutate its attempt after a replacement claimant wins', async () => {
+  it('settles a stale latest lease before an explicit retry and rejects its old owner', async () => {
     const client = await database();
     const { repository, key } = await notification(client);
-    const stale = await repository.claim(key);
+    const stale = await repository.claim(key, 'automatic');
     expect(stale).not.toBeNull();
     await client.execute({ sql: 'UPDATE receipt_notifications SET lease_expires_at = ?', args: ['2000-01-01T00:00:00.000Z'] });
-    const replacement = await repository.claim(key);
-    expect(replacement).not.toBeNull();
 
+    await expect(repository.claim(key)).resolves.toBeNull();
+    await expect(repository.settleExpired(key)).resolves.toBe(true);
     await expect(repository.complete(stale!, accepted())).resolves.toBe(false);
-    expect((await client.execute('SELECT status, attempt_count, lease_token FROM receipt_notifications')).rows)
-      .toEqual([{ status: 'pending', attempt_count: 2, lease_token: replacement!.leaseToken }]);
-    expect((await client.execute('SELECT attempt_no, outcome FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
-      .toEqual([{ attempt_no: 1, outcome: 'in_progress' }, { attempt_no: 2, outcome: 'in_progress' }]);
+    expect((await client.execute('SELECT status, attempt_count, lease_token, lease_expires_at, last_error_code FROM receipt_notifications')).rows)
+      .toEqual([{ status: 'uncertain', attempt_count: 1, lease_token: null, lease_expires_at: null, last_error_code: 'ATTEMPT_BUSY' }]);
+    expect((await client.execute('SELECT attempt_no, trigger, outcome, error_code FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
+      .toEqual([{ attempt_no: 1, trigger: 'automatic', outcome: 'uncertain', error_code: 'ATTEMPT_BUSY' }]);
+
+    const replacement = await repository.claim(key, 'admin_retry');
+    expect(replacement).not.toBeNull();
+    expect((await client.execute('SELECT attempt_no, trigger, outcome FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
+      .toEqual([{ attempt_no: 1, trigger: 'automatic', outcome: 'uncertain' }, { attempt_no: 2, trigger: 'admin_retry', outcome: 'in_progress' }]);
+  });
+
+  it('records an explicit reconcile trigger and reserves automatic dispatch for the first pending attempt', async () => {
+    const client = await database();
+    const { repository, key } = await notification(client);
+    const reconcile = await repository.claim(key, 'admin_reconcile');
+    expect(reconcile).not.toBeNull();
+    await repository.complete(reconcile!, { status: 'failed', errorCode: 'PROVIDER_REJECTED' });
+
+    await expect(repository.claim(key)).resolves.toBeNull();
+    const retry = await repository.claim(key, 'admin_retry');
+    expect(retry).not.toBeNull();
+    await repository.complete(retry!, { status: 'uncertain', errorCode: 'PROVIDER_NETWORK' });
+
+    expect((await client.execute('SELECT trigger, outcome FROM receipt_notification_attempts ORDER BY attempt_no')).rows)
+      .toEqual([{ trigger: 'admin_reconcile', outcome: 'failed' }, { trigger: 'admin_retry', outcome: 'uncertain' }]);
+    await expect(repository.claim(key, 'automatic')).resolves.toBeNull();
+  });
+
+  it('rolls back stale settlement when its matching attempt cannot be finalized', async () => {
+    const client = await database();
+    const { repository, key } = await notification(client);
+    const attempt = await repository.claim(key, 'automatic');
+    expect(attempt).not.toBeNull();
+    await client.execute({ sql: "UPDATE receipt_notifications SET lease_expires_at = '2000-01-01T00:00:00.000Z'" });
+    await client.execute(`CREATE TRIGGER reject_stale_settlement BEFORE UPDATE ON receipt_notification_attempts
+      WHEN NEW.outcome = 'uncertain' BEGIN SELECT RAISE(ABORT, 'attempt-finalization-blocked'); END`);
+
+    try {
+      await expect(repository.settleExpired(key)).rejects.toThrow('attempt-finalization-blocked');
+    } finally {
+      await client.execute('DROP TRIGGER reject_stale_settlement');
+    }
+    expect((await client.execute('SELECT status, lease_token, lease_expires_at, last_error_code FROM receipt_notifications')).rows)
+      .toEqual([{ status: 'pending', lease_token: attempt!.leaseToken, lease_expires_at: '2000-01-01T00:00:00.000Z', last_error_code: null }]);
+    expect((await client.execute('SELECT outcome, error_code FROM receipt_notification_attempts')).rows)
+      .toEqual([{ outcome: 'in_progress', error_code: null }]);
   });
 
   it('permits exactly one result when two finalizers race for the same lease', async () => {
     const client = await database();
     const { repository, key } = await notification(client);
-    const attempt = await repository.claim(key);
+    const attempt = await repository.claim(key, 'automatic');
     expect(attempt).not.toBeNull();
 
     const results = await Promise.all([repository.complete(attempt!, accepted()), repository.complete(attempt!, accepted())]);
@@ -97,7 +139,7 @@ describe('receipt lease-owned finalization', () => {
   it('treats an expired post-send lease as uncertain rather than blindly marking the receipt sent', async () => {
     const client = await database();
     const { repository, key } = await notification(client);
-    const attempt = await repository.claim(key);
+    const attempt = await repository.claim(key, 'automatic');
     expect(attempt).not.toBeNull();
     await client.execute({ sql: 'UPDATE receipt_notifications SET lease_expires_at = ?', args: ['2000-01-01T00:00:00.000Z'] });
 
@@ -123,8 +165,8 @@ describe('receipt lease-owned finalization', () => {
 
     const service = createReceiptService(repository, messenger);
     await service.dispatch(key);
-    await service.dispatch(key);
-    await service.dispatch(key);
+    await service.dispatch(key, 'admin_retry');
+    await service.dispatch(key, 'admin_retry');
     expect(sent).toHaveLength(3);
     const notificationRow = await client.execute('SELECT status, provider_message_id, last_error_code, last_error_message FROM receipt_notifications');
     const attempts = await client.execute('SELECT provider_message_id, error_code, error_message FROM receipt_notification_attempts ORDER BY attempt_no');

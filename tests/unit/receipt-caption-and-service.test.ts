@@ -75,7 +75,7 @@ describe('provider-neutral document receipt service', () => {
     currentTerms.publicPath = new URL(newPdf).pathname;
     currentTerms.filename = 'bases-y-categorias-batalla-de-barberos-borrador-2026-10-v1.pdf';
     try {
-      await service.dispatch(key);
+      await service.dispatch(key, 'admin_retry');
     } finally {
       Object.assign(currentTerms, storedCurrentTerms);
     }
