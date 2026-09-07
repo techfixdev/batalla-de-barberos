@@ -4,17 +4,25 @@ import {
   resolveEvolutionDocumentUrl as resolveDocumentUrl,
   type DispatchConfiguration,
 } from './notifications/evolution-document-wire-profile';
+import { parseEvolutionPrivateMediaProfile, type PrivateMediaConfiguration } from './notifications/evolution-private-media-profile';
 
 type Environment = Record<string, string | undefined>;
 type Readiness = Readonly<{ kind: 'ready' }> | Readonly<{ kind: 'blocked'; reason: 'admin-credentials-invalid' | 'database-credentials-invalid' }>;
 export type SignupConfiguration = Readonly<{ kind: 'ready'; canonicalSiteOrigin: string }> | Readonly<{ kind: 'blocked'; reason: 'canonical-site-origin-invalid' }>;
+
+export type AdminMessageRecipientHmacConfiguration =
+  | Readonly<{ kind: 'ready'; secret: Uint8Array }>
+  | Readonly<{ kind: 'blocked'; reason: 'recipient-hmac-secret-invalid' }>;
 
 export type ServerConfig = Readonly<{
   signup: SignupConfiguration;
   admin: Readiness;
   database: Readiness;
   whatsappDispatch: DispatchConfiguration;
+  whatsappPrivateMedia: PrivateMediaConfiguration;
+  adminMessageRecipientHmac: AdminMessageRecipientHmacConfiguration;
   profileFingerprint?: string;
+  privateMediaProfileFingerprint?: string;
 }>;
 
 function value(environment: Environment, name: string): string | null {
@@ -67,16 +75,29 @@ function databaseReadiness(environment: Environment): Readiness {
   }
 }
 
+function recipientHmacConfiguration(environment: Environment): AdminMessageRecipientHmacConfiguration {
+  const encoded = value(environment, 'ADMIN_MESSAGE_RECIPIENT_HMAC_SECRET_B64');
+  return encoded && isCanonicalBase64(encoded) && Buffer.from(encoded, 'base64').length >= 32
+    ? { kind: 'ready', secret: new Uint8Array(Buffer.from(encoded, 'base64')) }
+    : { kind: 'blocked', reason: 'recipient-hmac-secret-invalid' };
+}
+
 export function loadServerConfig(environment: Environment = process.env, options: Readonly<{ fallbackOrigin?: string }> = {}): ServerConfig {
   const whatsappDispatch = parseEvolutionDocumentWireProfile(environment);
+  const whatsappPrivateMedia = parseEvolutionPrivateMediaProfile(environment);
   return {
     signup: signupConfiguration(environment, options.fallbackOrigin),
     admin: adminReadiness(environment),
     database: databaseReadiness(environment),
     whatsappDispatch,
+    whatsappPrivateMedia,
+    adminMessageRecipientHmac: recipientHmacConfiguration(environment),
     ...(whatsappDispatch.kind === 'ready'
       ? { profileFingerprint: whatsappDispatch.profile.fingerprint }
       : whatsappDispatch.fingerprint ? { profileFingerprint: whatsappDispatch.fingerprint } : {}),
+    ...(whatsappPrivateMedia.kind === 'ready'
+      ? { privateMediaProfileFingerprint: whatsappPrivateMedia.profile.fingerprint }
+      : whatsappPrivateMedia.fingerprint ? { privateMediaProfileFingerprint: whatsappPrivateMedia.fingerprint } : {}),
   };
 }
 

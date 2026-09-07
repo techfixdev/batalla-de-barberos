@@ -58,7 +58,8 @@ describe('versioned registration migrations', () => {
       phone: '011 15 2345 6789', phone_e164: null, review_state: 'received',
       participant_response_state: 'not_requested', receipt_required: 0, terms_version: null, state_version: 0,
     }]);
-    expect((await database.execute('SELECT version FROM schema_migrations')).rows).toEqual([{ version: '002_admin_whatsapp' }]);
+    expect((await database.execute('SELECT version FROM schema_migrations ORDER BY version')).rows)
+      .toEqual([{ version: '002_admin_whatsapp' }, { version: '003_registration_numbers_and_deletion' }, { version: '004_admin_message_jobs' }]);
     expect((await database.execute('SELECT id FROM receipt_notifications WHERE registration_id = ?', ['historic-1'])).rows).toEqual([]);
   });
 
@@ -68,12 +69,12 @@ describe('versioned registration migrations', () => {
     await migrate(database);
 
     const indexes = await Promise.all([
-      'barber_signups', 'receipt_notifications', 'receipt_notification_attempts', 'admin_sessions',
+      'barber_signups', 'receipt_notifications', 'receipt_notification_attempts', 'admin_sessions', 'admin_message_jobs',
     ].map(async (table) => (await database.execute(`SELECT name FROM pragma_index_list('${table}')`)).rows.map(({ name }) => name)));
     expect(indexes.flat()).toEqual(expect.arrayContaining([
       'barber_signups_created_at_id_idx', 'barber_signups_submission_key_unique_idx', 'barber_signups_review_state_idx',
       'barber_signups_participant_response_state_idx', 'receipt_notifications_status_updated_at_idx',
-      'receipt_notification_attempts_notification_attempt_no_idx', 'admin_sessions_expires_at_idx',
+      'receipt_notification_attempts_notification_attempt_no_idx', 'admin_sessions_expires_at_idx', 'admin_message_jobs_state_updated_at_idx',
     ]));
     await insertNotification(database, 'receipt-1', 'logical-1', 'historic-1', 'draft-1');
     await expect(insertNotification(database, 'receipt-2', 'logical-2', 'historic-1', 'draft-1')).rejects.toThrow();
@@ -104,5 +105,34 @@ describe('versioned registration migrations', () => {
     await expect(session('session-2', 'token-hash')).rejects.toThrow();
     expect((await database.execute('SELECT receipt_required FROM barber_signups WHERE id = ?', ['historic-1'])).rows)
       .toEqual([{ receipt_required: 0 }]);
+  });
+
+  it('assigns stable positive registration numbers in creation order and never reuses a deleted number', async () => {
+    const database = legacyDatabase();
+    await createLegacySignup(database);
+    await database.execute({ sql: `INSERT INTO barber_signups (id, full_name, email, phone, experience, accepted_rules, created_at)
+      VALUES ('historic-2', 'Segundo', 'historic-2@example.com', '2', 'profesional', 1, '2026-01-01T00:00:00.000Z')` });
+    await database.execute({ sql: `UPDATE barber_signups SET created_at = '2026-01-01T00:00:00.000Z' WHERE id = 'historic-1'` });
+
+    await migrate(database);
+    expect((await database.execute('SELECT number, registration_id FROM registration_numbers ORDER BY number')).rows)
+      .toEqual([{ number: 1, registration_id: 'historic-1' }, { number: 2, registration_id: 'historic-2' }]);
+    await migrate(database);
+    expect((await database.execute('SELECT COUNT(*) AS count FROM registration_numbers')).rows).toEqual([{ count: 2 }]);
+
+    await database.execute("DELETE FROM barber_signups WHERE id = 'historic-2'");
+    await database.execute({ sql: `INSERT INTO barber_signups (id, full_name, email, phone, experience, accepted_rules)
+      VALUES ('new-3', 'Tercero', 'new-3@example.com', '3', 'profesional', 1)` });
+    expect((await database.execute("SELECT number FROM registration_numbers WHERE registration_id = 'new-3'")).rows)
+      .toEqual([{ number: 3 }]);
+  });
+
+  it('rolls back a signup when automatic registration-number allocation fails', async () => {
+    const database = legacyDatabase();
+    await migrate(database);
+    await database.execute('DROP TABLE registration_numbers');
+    await expect(database.execute({ sql: `INSERT INTO barber_signups (id, full_name, email, phone, experience, accepted_rules)
+      VALUES ('trigger-failure', 'Falla', 'failure@example.com', '3', 'profesional', 1)` })).rejects.toThrow();
+    expect((await database.execute("SELECT id FROM barber_signups WHERE id = 'trigger-failure'")).rows).toEqual([]);
   });
 });

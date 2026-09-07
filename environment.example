@@ -6,6 +6,9 @@ ADMIN_PASSWORD_HASH=generate-with-pnpm-admin:password-hash
 ADMIN_SESSION_SECRET_B64=replace-with-random-base64-secret-at-least-32-bytes
 CANONICAL_SITE_ORIGIN=https://your-production-domain.example
 WHATSAPP_DISPATCH_ENABLED=false
+# Private PDF-bytes transport is a separate, human-validated capability and stays disabled by default.
+WHATSAPP_PRIVATE_MEDIA_ENABLED=false
+ADMIN_MESSAGE_RECIPIENT_HMAC_SECRET_B64=replace-with-new-random-base64-secret-at-least-32-bytes
 EVOLUTION_API_BASE_URL=https://evolution.example
 EVOLUTION_API_INSTANCE=replace-with-instance-name
 EVOLUTION_API_KEY=replace-with-evolution-api-key
@@ -30,3 +33,4 @@ EVOLUTION_API_MESSAGE_ID_PATH=id
 EVOLUTION_API_IDEMPOTENCY_HEADER=
 EVOLUTION_API_TIMEOUT_MS=7000
 EVOLUTION_API_VALIDATED_PROFILE_SHA256=replace-with-validated-non-secret-profile-fingerprint
+EVOLUTION_API_PRIVATE_MEDIA_VALIDATED_PROFILE_SHA256=replace-with-human-validated-private-media-profile-fingerprint

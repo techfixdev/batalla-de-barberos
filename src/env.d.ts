@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly ADMIN_SESSION_SECRET_B64?: string;
   readonly CANONICAL_SITE_ORIGIN?: string;
   readonly WHATSAPP_DISPATCH_ENABLED?: 'true' | 'false';
+  readonly WHATSAPP_PRIVATE_MEDIA_ENABLED?: 'true' | 'false';
+  readonly ADMIN_MESSAGE_RECIPIENT_HMAC_SECRET_B64?: string;
   readonly EVOLUTION_API_BASE_URL?: string;
   readonly EVOLUTION_API_INSTANCE?: string;
   readonly EVOLUTION_API_KEY?: string;
@@ -32,6 +34,7 @@ interface ImportMetaEnv {
   readonly EVOLUTION_API_IDEMPOTENCY_HEADER?: string;
   readonly EVOLUTION_API_TIMEOUT_MS?: string;
   readonly EVOLUTION_API_VALIDATED_PROFILE_SHA256?: string;
+  readonly EVOLUTION_API_PRIVATE_MEDIA_VALIDATED_PROFILE_SHA256?: string;
 }
 
 declare namespace App {

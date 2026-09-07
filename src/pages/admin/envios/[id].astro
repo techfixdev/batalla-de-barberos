@@ -1,0 +1,42 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDatabase } from '../../../lib/database';
+import { createAdminMessageRuntime } from '../../../lib/server/admin/admin-message-runtime';
+import type { AdminMessageJobSummary } from '../../../lib/server/admin/admin-message-contracts';
+import { adminMessageAttemptOutcomeLabel } from '../../../lib/server/admin/registration-labels';
+
+const labels = { confirmation: 'Confirmación de plaza', organization_list: 'Listado para la organización' } as const;
+const states = { pending: 'Pendiente', sent: 'Aceptado por el proveedor', failed: 'Fallido', uncertain: 'Resultado incierto' } as const;
+let job: AdminMessageJobSummary | null = null;
+let ready = false, unavailable = false;
+try { const runtime = createAdminMessageRuntime(getDatabase(), import.meta.env); ready = runtime.ready; if ('repository' in runtime) job = await runtime.repository.get(Astro.params.id ?? ''); }
+catch { unavailable = true; }
+if (unavailable) Astro.response.status = 503; else if (!job && ready) Astro.response.status = 404;
+const stale = job?.state === 'pending' && !!job.leaseExpiresAt && Date.parse(job.leaseExpiresAt) <= Date.now();
+---
+<AdminLayout csrfToken={Astro.locals.adminCsrfToken}>
+  <section class="admin-detail admin-message-status" aria-labelledby="message-title">
+    <a class="admin-back" href="/admin">Volver a inscripciones</a>
+    <p class="eyebrow">Envío manual de WhatsApp</p>
+    <h1 id="message-title">Estado del envío</h1>
+    {unavailable ? <p class="admin-message" role="alert">No se pudo consultar el envío.</p> : !job ? <p class="admin-message" role="alert">El envío privado está deshabilitado hasta completar una validación humana controlada. Los acuses existentes, exportaciones y demás acciones administrativas siguen disponibles.</p> : <>
+      {!ready && <p class="admin-message" role="alert">Los nuevos envíos y reintentos privados están deshabilitados hasta completar una validación humana controlada.</p>}
+      <dl class="admin-detail-list">
+        <div><dt>Acción</dt><dd>{labels[job.kind]}</dd></div><div><dt>Estado</dt><dd>{states[job.state]}</dd></div>
+        <div><dt>Inscripciones</dt><dd>{job.registrationNumbers.map((number) => `N.º ${number}`).join(', ')}</dd></div>
+        <div><dt>Intentos</dt><dd>{job.attemptCount}</dd></div><div><dt>Creado</dt><dd><time datetime={job.createdAt}>{job.createdAt}</time></dd></div>
+        {job.sentAt && <div><dt>Aceptación del proveedor</dt><dd><time datetime={job.sentAt}>{job.sentAt}</time></dd></div>}
+        {job.lastErrorCode && <div><dt>Diagnóstico seguro</dt><dd>{job.lastErrorCode}</dd></div>}
+      </dl>
+      {job.state === 'sent' && <p class="admin-note">El proveedor aceptó el documento. Esto no demuestra entrega, lectura ni respuesta del destinatario.</p>}
+      <ol class="admin-history" aria-label="Historial seguro del envío">{job.attempts.map((attempt) => <li><strong>Intento {attempt.attemptNo} · {adminMessageAttemptOutcomeLabel(attempt.outcome)}</strong><br/><time datetime={attempt.startedAt}>{attempt.startedAt}</time>{attempt.completedAt && <> · <time datetime={attempt.completedAt}>{attempt.completedAt}</time></>}{attempt.errorCode && <><br/>Diagnóstico: {attempt.errorCode}</>}</li>)}</ol>
+      {ready && (job.state === 'failed' || job.state === 'uncertain') && <form class="admin-recovery-form" method="post" action={`/api/admin/messages/${encodeURIComponent(job.id)}/retry`}>
+        <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken}/>
+        {job.kind === 'organization_list' ? <label>Número argentino de la organización<input name="recipient" type="tel" inputmode="tel" required autocomplete="off"/></label> : <input type="hidden" name="recipient" value=""/>}
+        {job.state === 'uncertain' ? <label><input type="checkbox" name="ackUncertain" value="1" required/> Entiendo que el proveedor podría haber aceptado el envío y que reintentar puede duplicarlo.</label> : <input type="hidden" name="ackUncertain" value=""/>}
+        <button type="submit">Reintentar envío</button>
+      </form>}
+      {ready && stale && <form class="admin-recovery-form" method="post" action={`/api/admin/messages/${encodeURIComponent(job.id)}/reconcile`}><input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken}/><button type="submit">Resolver intento vencido como incierto</button></form>}
+    </>}
+  </section>
+</AdminLayout>

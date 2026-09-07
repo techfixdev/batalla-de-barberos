@@ -2,23 +2,37 @@
 import RegistrationStates from '../../components/admin/RegistrationStates.astro';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getDatabase } from '../../lib/database';
+import { PARTICIPANT_RESPONSE_OPTIONS, RECEIPT_STATUS_OPTIONS, REVIEW_STATE_OPTIONS } from '../../lib/server/admin/registration-labels';
 import { presentRegistration } from '../../lib/server/admin/registration-presentation';
 import { createRegistrationReadRepository } from '../../lib/server/admin/registration-read-repository';
+import { createAdminMessageRuntime } from '../../lib/server/admin/admin-message-runtime';
+import type { AdminMessageJobSummary } from '../../lib/server/admin/admin-message-contracts';
 
-const allowed = new Set(['review', 'participant', 'receipt', 'attention', 'cursor']);
+const allowed = new Set(['review', 'participant', 'receipt', 'attention', 'cursor', 'deleted']);
 const query = Astro.url.searchParams;
-const invalidQuery = [...query].some(([key]) => !allowed.has(key)) || [...allowed].some((key) => query.getAll(key).length > 1);
-const input = { reviewState: query.get('review') ?? undefined, participantResponseState: query.get('participant') ?? undefined,
-  receiptStatus: query.get('receipt') ?? undefined, attention: query.get('attention') ?? undefined, cursor: query.get('cursor') ?? undefined };
+const invalidQuery = [...query].some(([key]) => !allowed.has(key)) || [...allowed].some((key) => query.getAll(key).length > 1)
+  || (query.has('deleted') && query.get('deleted') !== '1');
+const deletionCompleted = query.get('deleted') === '1';
+const operationId = crypto.randomUUID();
+const organizationOperationNonce = crypto.randomUUID();
+const input = { reviewState: query.get('review') || undefined, participantResponseState: query.get('participant') || undefined,
+  receiptStatus: query.get('receipt') || undefined, attention: query.get('attention') || undefined, cursor: query.get('cursor') || undefined };
+const hasFilters = Boolean(input.reviewState || input.participantResponseState || input.receiptStatus || input.attention);
 let registrations: Awaited<ReturnType<ReturnType<typeof createRegistrationReadRepository>['list']>>['registrations'] = [];
+let recentJobs: readonly AdminMessageJobSummary[] = [];
+let privateMessagesReady = false;
 let count = 0, nextCursor: string | null = null, errorStatus: 400 | 503 | null = null;
 
 if (invalidQuery) errorStatus = 400;
 else {
   try {
-    const repository = createRegistrationReadRepository(getDatabase());
+    const database = getDatabase();
+    const repository = createRegistrationReadRepository(database);
     ({ registrations, nextCursor } = await repository.list(input));
     count = await repository.count(input);
+    const runtime = createAdminMessageRuntime(database, import.meta.env);
+    privateMessagesReady = runtime.ready;
+    if ('repository' in runtime) recentJobs = await runtime.repository.list(10);
   } catch (error) {
     errorStatus = error instanceof Error && error.message.startsWith('Invalid registration') ? 400 : 503;
   }
@@ -41,17 +55,58 @@ function href(cursor?: string | null) {
     <p class="eyebrow">Panel protegido</p>
     <h1 id="admin-title">Inscripciones recibidas</h1>
     {errorStatus ? <p class="admin-message" role="alert">{errorStatus === 400 ? 'Solicitud no válida.' : 'Servicio no disponible.'}</p> : <>
+      {deletionCompleted && <p class="admin-message" role="status">La eliminación permanente se completó.</p>}
       <p class="admin-count">{count} inscripciones recibidas</p>
       <form class="admin-filters" method="get" action="/admin">
-        <label>Revisión<select name="review"><option value="">Todas</option>{['received', 'under_review', 'selected', 'rejected', 'withdrawn'].map((value) => <option value={value} selected={input.reviewState === value}>{value}</option>)}</select></label>
-        <label>Respuesta<select name="participant"><option value="">Todas</option>{['not_requested', 'pending', 'confirmed', 'declined'].map((value) => <option value={value} selected={input.participantResponseState === value}>{value}</option>)}</select></label>
-        <label>Acuse<select name="receipt"><option value="">Todos</option>{['pending', 'sent', 'failed', 'uncertain'].map((value) => <option value={value} selected={input.receiptStatus === value}>{value}</option>)}</select></label>
+        <label>Revisión<select name="review"><option value="">Todas</option>{REVIEW_STATE_OPTIONS.map(([value, label]) => <option value={value} selected={input.reviewState === value}>{label}</option>)}</select></label>
+        <label>Respuesta<select name="participant"><option value="">Todas</option>{PARTICIPANT_RESPONSE_OPTIONS.map(([value, label]) => <option value={value} selected={input.participantResponseState === value}>{label}</option>)}</select></label>
+        <label>Acuse<select name="receipt"><option value="">Todos</option>{RECEIPT_STATUS_OPTIONS.map(([value, label]) => <option value={value} selected={input.receiptStatus === value}>{label}</option>)}</select></label>
         <label>Atención<select name="attention"><option value="">Todas</option><option value="1" selected={input.attention === '1'}>Requiere atención</option></select></label>
         <button type="submit">Filtrar</button><a href="/admin">Restablecer filtros</a>
       </form>
-      {count === 0 ? <p class="admin-empty">Todavía no hay inscripciones recibidas</p> : registrations.length === 0 ? <p class="admin-empty">No hay inscripciones con estos filtros.</p> : <div class="admin-table-wrap"><table><thead><tr><th>Inscripción</th><th>Teléfono</th><th>Estados</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody>
-        {registrations.map((registration) => { const view = presentRegistration(registration); return <tr><td><strong>{registration.fullName}</strong><br /><small>{registration.id}</small></td><td>{view.phone}</td><td><RegistrationStates registration={view} /></td><td><a href={`/admin/inscripciones/${encodeURIComponent(registration.id)}`}>Ver inscripción</a></td></tr>; })}
-      </tbody></table></div>}
+      {count > 0 && <form id="registration-export-form" class="admin-export" action="/api/admin/registrations/export" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} /><input type="hidden" name="scope" value="filtered" />
+        <input type="hidden" name="review" value={input.reviewState ?? ''} /><input type="hidden" name="participant" value={input.participantResponseState ?? ''} />
+        <input type="hidden" name="receipt" value={input.receiptStatus ?? ''} /><input type="hidden" name="attention" value={input.attention ?? ''} />
+        <p id="export-count" aria-live="polite">Exportar {count} inscripciones con los filtros actuales</p>
+        <p id="export-limit" class="admin-export__limit" hidden={count <= 1000}>Hay más de 1000 resultados. Aplicá filtros más específicos o seleccioná filas de esta página.</p>
+        <div id="export-selected-ids"></div>
+        <div class="admin-export__actions"><button class="export-submit" type="submit" name="format" value="xlsx" disabled={count > 1000}>Descargar Excel</button><button class="export-submit" type="submit" name="format" value="pdf" disabled={count > 1000}>Descargar PDF</button></div>
+        <small>Sin selección, se exportan todos los resultados de los filtros actuales, no solo esta página. Máximo: 1000.</small>
+      </form>}
+      {count > 0 && <section class="admin-export" aria-labelledby="organization-send-title">
+         <h2 id="organization-send-title">Enviar listado a la organización</h2>
+         <p>Acción separada: genera un PDF con las filas seleccionadas o, sin selección, con los filtros actuales.</p>
+         {!privateMessagesReady ? <p class="admin-message" role="alert">El envío privado está deshabilitado hasta completar una validación humana controlada. Las exportaciones siguen disponibles.</p> : <form id="organization-send-form" action="/api/admin/registrations/send-organization-list" method="post">
+           <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken}/><input type="hidden" name="operationNonce" value={organizationOperationNonce}/><input type="hidden" name="scope" value="filtered"/>
+           <input type="hidden" name="review" value={input.reviewState ?? ''}/><input type="hidden" name="participant" value={input.participantResponseState ?? ''}/><input type="hidden" name="receipt" value={input.receiptStatus ?? ''}/><input type="hidden" name="attention" value={input.attention ?? ''}/>
+           <div id="organization-selected-ids"></div><p id="organization-count" aria-live="polite">Enviar {count} inscripciones con los filtros actuales</p>
+           <p id="organization-limit" class="admin-export__limit" hidden={count <= 1000}>Hay más de 1000 resultados. Aplicá filtros más específicos o seleccioná filas de esta página.</p>
+           <label>Número argentino de destino<input name="recipient" type="tel" inputmode="tel" autocomplete="off" required placeholder="011 15-2345-6789"/></label>
+           <label><input name="confirmSend" type="checkbox" value="1" required/> Revisé la cantidad y el destino; quiero enviar este listado por WhatsApp.</label>
+           <button id="organization-submit" type="submit" disabled={count > 1000}>Crear y enviar listado</button>
+         </form>}
+       </section>}
+       {recentJobs.length > 0 && <section aria-labelledby="recent-messages-title"><h2 id="recent-messages-title">Envíos manuales recientes</h2><ul class="admin-history">{recentJobs.map((job) => <li><a href={`/admin/envios/${encodeURIComponent(job.id)}`}>{job.kind === 'confirmation' ? 'Confirmación' : 'Listado'} · {job.registrationNumbers.map((number) => `N.º ${number}`).join(', ')}</a> — {job.state}</li>)}</ul></section>}
+       {count === 0 ? <p class="admin-empty">{hasFilters ? 'No hay inscripciones con estos filtros.' : 'Todavía no hay inscripciones recibidas'}</p> : registrations.length === 0 ? <p class="admin-empty">No hay inscripciones con estos filtros.</p> : <form id="registration-deletion-form" class="admin-deletion" action="/api/admin/registrations/delete" method="post">
+        <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+        <input type="hidden" name="operationId" value={operationId} />
+        <div class="admin-selection-bar">
+          <label><input id="select-current-page" type="checkbox" /> Seleccionar las {registrations.length} de esta página</label>
+          <strong aria-live="polite"><span id="selected-count">0</span> seleccionadas</strong>
+          <button id="open-delete-confirmation" type="button" disabled>Eliminar seleccionadas</button>
+        </div>
+        <div class="admin-table-wrap"><table><thead><tr><th><span class="sr-only">Seleccionar</span></th><th>Inscripción</th><th>Contacto</th><th>Estados</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody>
+          {registrations.map((registration) => { const view = presentRegistration(registration); return <tr class="admin-registration-card"><td data-label="Seleccionar"><input class="registration-selection" type="checkbox" name="registrationId" value={registration.id} aria-label={`Seleccionar inscripción ${registration.registrationNumber}`} /></td><td data-label="Inscripción"><span class="admin-card-value"><strong>{registration.fullName}</strong><br /><small>Inscripción N.º {registration.registrationNumber}</small></span></td><td data-label="Contacto"><span class="admin-card-value"><a href={`mailto:${registration.email}`}>{registration.email}</a><br />{registration.phoneE164 ? <a href={`tel:${registration.phoneE164}`}>{view.phone}</a> : <span>{view.phone}</span>}</span></td><td data-label="Estados"><RegistrationStates registration={view} /></td><td class="admin-registration-card__action"><a class="admin-registration-card__detail" href={`/admin/inscripciones/${encodeURIComponent(registration.id)}`}>Ver inscripción</a></td></tr>; })}
+        </tbody></table></div>
+        <dialog id="delete-confirmation" aria-labelledby="delete-title">
+          <h2 id="delete-title">Eliminar permanentemente</h2>
+          <p>Esta acción es irreversible. Si algún acuse o envío manual está en curso o incierto, primero hay que conciliarlo y se bloqueará toda la selección. Eliminar datos locales no borra los WhatsApps ya entregados.</p>
+          <label>Escribí <strong id="required-confirmation">ELIMINAR 0</strong><input id="deletion-confirmation" name="confirmation" autocomplete="off" /></label>
+          <label><input id="irreversible-ack" type="checkbox" name="irreversible" value="1" /> Entiendo que los registros no se pueden recuperar.</label>
+          <div class="admin-dialog-actions"><button id="cancel-delete" type="button">Cancelar</button><button id="confirm-delete" type="submit" disabled>Eliminar permanentemente</button></div>
+        </dialog>
+      </form>}
       <nav class="admin-pagination" aria-label="Paginación de inscripciones">
         {input.cursor && <a href={href()}>Volver a la primera página</a>}
         {nextCursor && <a href={href(nextCursor)}>Siguientes 50 inscripciones</a>}
@@ -59,3 +114,58 @@ function href(cursor?: string | null) {
     </>}
   </section>
 </AdminLayout>
+
+<script>
+  const selections = Array.from(document.querySelectorAll<HTMLInputElement>('.registration-selection'));
+  const selectAll = document.querySelector<HTMLInputElement>('#select-current-page');
+  const count = document.querySelector<HTMLElement>('#selected-count');
+  const open = document.querySelector<HTMLButtonElement>('#open-delete-confirmation');
+  const dialog = document.querySelector<HTMLDialogElement>('#delete-confirmation');
+  const required = document.querySelector<HTMLElement>('#required-confirmation');
+  const confirmation = document.querySelector<HTMLInputElement>('#deletion-confirmation');
+  const acknowledgement = document.querySelector<HTMLInputElement>('#irreversible-ack');
+  const submit = document.querySelector<HTMLButtonElement>('#confirm-delete');
+  const cancel = document.querySelector<HTMLButtonElement>('#cancel-delete');
+  const exportCount = document.querySelector<HTMLElement>('#export-count');
+  const exportIds = document.querySelector<HTMLElement>('#export-selected-ids');
+  const exportLimit = document.querySelector<HTMLElement>('#export-limit');
+  const exportButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.export-submit'));
+  const organizationIds = document.querySelector<HTMLElement>('#organization-selected-ids');
+  const organizationCount = document.querySelector<HTMLElement>('#organization-count');
+  const organizationLimit = document.querySelector<HTMLElement>('#organization-limit');
+  const organizationSubmit = document.querySelector<HTMLButtonElement>('#organization-submit');
+  const filteredCount = Number(document.querySelector<HTMLElement>('.admin-count')?.textContent?.match(/^\d+/)?.[0] ?? 0);
+
+  function selectedCount() { return selections.filter((checkbox) => checkbox.checked).length; }
+  function updateConfirmation() {
+    const phrase = `ELIMINAR ${selectedCount()}`;
+    if (required) required.textContent = phrase;
+    if (submit) submit.disabled = confirmation?.value !== phrase || acknowledgement?.checked !== true;
+  }
+  function updateSelection() {
+    const selected = selectedCount();
+    if (count) count.textContent = String(selected);
+    if (open) open.disabled = selected === 0;
+    if (selectAll) { selectAll.checked = selected === selections.length; selectAll.indeterminate = selected > 0 && selected < selections.length; }
+    if (exportIds) exportIds.replaceChildren(...selections.filter((checkbox) => checkbox.checked).map((checkbox) => {
+      const hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'registrationId'; hidden.value = checkbox.value; return hidden;
+    }));
+    if (exportCount) exportCount.textContent = selected > 0 ? `Exportar ${selected} inscripciones seleccionadas` : `Exportar ${filteredCount} inscripciones con los filtros actuales`;
+    const overLimit = selected === 0 && filteredCount > 1000;
+    exportButtons.forEach((button) => { button.disabled = overLimit; });
+    if (exportLimit) exportLimit.hidden = !overLimit;
+    if (organizationIds) organizationIds.replaceChildren(...selections.filter((checkbox) => checkbox.checked).map((checkbox) => {
+      const hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'registrationId'; hidden.value = checkbox.value; return hidden;
+    }));
+    if (organizationCount) organizationCount.textContent = selected > 0 ? `Enviar ${selected} inscripciones seleccionadas` : `Enviar ${filteredCount} inscripciones con los filtros actuales`;
+    if (organizationLimit) organizationLimit.hidden = !overLimit;
+    if (organizationSubmit) organizationSubmit.disabled = overLimit;
+    updateConfirmation();
+  }
+  selections.forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
+  selectAll?.addEventListener('change', () => { selections.forEach((checkbox) => { checkbox.checked = selectAll.checked; }); updateSelection(); });
+  open?.addEventListener('click', () => { updateConfirmation(); dialog?.showModal(); confirmation?.focus(); });
+  cancel?.addEventListener('click', () => dialog?.close());
+  confirmation?.addEventListener('input', updateConfirmation);
+  acknowledgement?.addEventListener('change', updateConfirmation);
+</script>

@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRegistrationLifecycleRepository } from '../../src/lib/server/admin/registration-lifecycle-repository';
 import { createRegistrationManagementService } from '../../src/lib/server/admin/registration-management-service';
 import { createRegistrationReadRepository } from '../../src/lib/server/admin/registration-read-repository';
+import {
+  experienceLabel,
+  participantResponseLabel,
+  receiptStatusLabel,
+  reviewStateLabel,
+} from '../../src/lib/server/admin/registration-labels';
 import { presentRegistration } from '../../src/lib/server/admin/registration-presentation';
 import { migrate } from '../../scripts/migrate.mjs';
 
@@ -44,6 +50,23 @@ async function seedReceipt(client: Client, registrationId: string, status: 'pend
 
 afterEach(() => databases.splice(0).forEach((client) => client.close()));
 
+describe('Spanish registration presentation labels', () => {
+  it('maps every persisted admin state without exposing raw or unknown English values', () => {
+    expect(['received', 'under_review', 'selected', 'rejected', 'withdrawn'].map(reviewStateLabel))
+      .toEqual(['Recibida', 'En revisión', 'Seleccionada', 'No seleccionada', 'Retirada']);
+    expect(['not_requested', 'pending', 'confirmed', 'declined'].map(participantResponseLabel))
+      .toEqual(['No solicitada', 'Pendiente', 'Confirmada', 'Rechazada']);
+    expect(['pending', 'sent', 'failed', 'uncertain'].map(receiptStatusLabel))
+      .toEqual(['Pendiente', 'Enviado', 'Fallido', 'Incierto']);
+    expect(['estudiante', 'profesional', 'educador'].map(experienceLabel))
+      .toEqual(['Estudiante', 'Profesional', 'Educador']);
+    expect(reviewStateLabel('future_internal_state')).toBe('Estado no disponible');
+    expect(participantResponseLabel('future_internal_state')).toBe('Estado no disponible');
+    expect(receiptStatusLabel('future_internal_state')).toBe('Estado no disponible');
+    expect(experienceLabel('future_internal_state')).toBe('Experiencia no disponible');
+  });
+});
+
 describe('submitted-registration-only admin read model', () => {
   it('lists and counts only persisted signups with a stable 50-row keyset and matching filters', async () => {
     const client = await database();
@@ -59,8 +82,8 @@ describe('submitted-registration-only admin read model', () => {
 
     const first = await repository.list();
     expect(first.registrations).toHaveLength(50);
-    expect(first.registrations[0]?.id).toBe('registration-51');
-    expect(first.registrations.at(-1)?.id).toBe('registration-02');
+    expect(first.registrations[0]).toMatchObject({ id: 'registration-51', registrationNumber: 51 });
+    expect(first.registrations.at(-1)).toMatchObject({ id: 'registration-02', registrationNumber: 2 });
     expect(first.nextCursor).toEqual(expect.any(String));
     if (!first.nextCursor) throw new Error('Expected a next-page cursor.');
     expect(await repository.count()).toBe(51);

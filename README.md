@@ -63,6 +63,23 @@ El JPEG reproducible incrustado en v3 se derivó una sola vez del PNG original, 
 /usr/bin/magick src/assets/barber-battle/entre-cortes-logo-ai.png -resize 600x400! -strip -colorspace sRGB -sampling-factor 4:4:4 -interlace none -quality 90 content/draft-terms/branding/entre-cortes-emblem.jpg
 ```
 
+## Admin export assets
+
+Authenticated Excel and PDF exports load their fonts and emblem directly from the server bundle; they never fetch assets from a public URL. The static Noto Sans Regular and Bold fonts are licensed under the SIL Open Font License 1.1 in `content/admin-export/fonts/OFL.txt`. Noto Sans covers Latin, Greek, and Cyrillic text used by the export; unsupported glyphs are rendered as a visible, text-extractable `?` fallback rather than silently omitted.
+
+| Asset | Pinned provenance | SHA-256 |
+|---|---|---|
+| `NotoSans-Regular.ttf` | `https://raw.githubusercontent.com/notofonts/noto-fonts/c971829a87e7920f960e7277c3dafd9bedd3c601/hinted/ttf/NotoSans/NotoSans-Regular.ttf` | `b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5` |
+| `NotoSans-Bold.ttf` | `https://raw.githubusercontent.com/notofonts/noto-fonts/c971829a87e7920f960e7277c3dafd9bedd3c601/hinted/ttf/NotoSans/NotoSans-Bold.ttf` | `c976e4b1b99edc88775377fcc21692ca4bfa46b6d6ca6522bfda505b28ff9d6a` |
+| `OFL.txt` | `https://raw.githubusercontent.com/notofonts/noto-fonts/c971829a87e7920f960e7277c3dafd9bedd3c601/LICENSE` | `0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb` |
+| Entre Cortes emblem (existing original) | `content/draft-terms/branding/entre-cortes-emblem.jpg` | `c321de2f807c4c205a62e5cc3eed9ac103eda08756f9db21dbca754a4f413bd6` |
+
+## Envíos manuales administrativos
+
+El panel mantiene tres acciones separadas: el acuse documental existente, la confirmación manual de plaza para una inscripción con revisión `selected`, y el listado PDF para la organización (filas seleccionadas o filtros actuales, máximo 1000). Los destinatarios no se guardan en claro: el listado exige ingresar un número móvil argentino en cada envío y los reintentos verifican la misma huella HMAC.
+
+La capacidad privada continúa **deshabilitada hasta una validación humana controlada**. Mientras esté bloqueada, la interfaz explica el motivo antes de crear jobs o contactar al proveedor; las exportaciones, eliminaciones, estados y acuses existentes siguen operativos. “Aceptado por el proveedor” no significa entregado, leído ni respondido.
+
 ## Accessibility
 
 The site uses semantic landmarks, a skip link, visible focus states, associated form labels, live status messages, reduced-motion handling, responsive layouts, and server/client validation. Manual keyboard and screen-reader testing is still recommended before launch.
@@ -73,16 +90,16 @@ Source code is available under the MIT License. The event poster at `src/assets/
 
 ## Operación segura
 
-- [ ] Copiar `environment.example` sin versionar secretos; local y preview conservan `WHATSAPP_DISPATCH_ENABLED=false`.
+- [ ] Copiar `environment.example` sin versionar secretos; local y preview conservan `WHATSAPP_DISPATCH_ENABLED=false` y `WHATSAPP_PRIVATE_MEDIA_ENABLED=false`.
 - [ ] Ejecutar `pnpm admin:password-hash` y entregar una sola contraseña por stdin; no usar argumentos ni registrar su salida salvo el hash.
-- [ ] Crear `ADMIN_SESSION_SECRET_B64` aleatorio de al menos 32 bytes e independiente de contraseña, Turso y Evolution.
+- [ ] Crear `ADMIN_SESSION_SECRET_B64` y `ADMIN_MESSAGE_RECIPIENT_HMAC_SECRET_B64` aleatorios, independientes y de al menos 32 bytes; el segundo protege la huella de destinatario del ledger y no debe derivarse de teléfonos.
 - [ ] Usar `CANONICAL_SITE_ORIGIN` HTTPS sin ruta, consulta, fragmento ni credenciales; no confiar en `Host` entrante.
 - [ ] Antes de `pnpm migrate`, seleccionar y confirmar la base explícitamente, tomar backup o branch, y revisar `schema_migrations`; nunca asumir producción.
-- [ ] Validar Evolution con un destinatario de prueba y PDF adjunto real antes de habilitar despacho; URL o texto solo no son aceptación.
+- [ ] Validar Evolution con un destinatario de prueba y PDF adjunto real antes de habilitar despacho; URL o texto solo no son aceptación. El transporte privado base64 de Evolution 2.3.7 exige una validación humana separada y su propio fingerprint antes de activar `WHATSAPP_PRIVATE_MEDIA_ENABLED=true`.
 - [ ] Un acuse `uncertain` puede duplicarse: revisar su advertencia antes de reintentar; para contener un incidente, desactivar despacho sin detener inscripciones.
 - [ ] Rotar por separado hash administrativo, secreto de sesión, `TURSO_AUTH_TOKEN` y `EVOLUTION_API_KEY`; rotar sesión invalida cookies firmadas.
 - [ ] Nunca sobrescribir un PDF publicado: una corrección crea versión, URL, archivo y checksum nuevos, conserva los anteriores y mantiene `BORRADOR — PENDIENTE DE REVISIÓN LEGAL` hasta aprobación legal.
 
-Variables servidor reales: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET_B64`, `CANONICAL_SITE_ORIGIN`, `WHATSAPP_DISPATCH_ENABLED`, `EVOLUTION_API_BASE_URL`, `EVOLUTION_API_INSTANCE`, `EVOLUTION_API_KEY`, `EVOLUTION_API_SEND_DOCUMENT_PATH_TEMPLATE`, `EVOLUTION_API_AUTH_HEADER`, `EVOLUTION_API_AUTH_SCHEME`, `EVOLUTION_API_DESTINATION_FIELD_PATH`, `EVOLUTION_API_MEDIA_URL_FIELD_PATH`, `EVOLUTION_API_FILENAME_FIELD_PATH`, `EVOLUTION_API_MIME_TYPE_FIELD_PATH`, `EVOLUTION_API_CAPTION_FIELD_PATH`, `EVOLUTION_API_MEDIA_KIND_FIELD_PATH`, `EVOLUTION_API_MEDIA_KIND_VALUE`, `EVOLUTION_API_DESTINATION_FORMAT`, `EVOLUTION_API_ACCEPTED_HTTP_STATUSES`, `EVOLUTION_API_SUCCESS_MODE`, `EVOLUTION_API_RESULT_FIELD_PATH`, `EVOLUTION_API_ACCEPTED_VALUES`, `EVOLUTION_API_MEDIA_REJECTED_VALUES`, `EVOLUTION_API_URL_ONLY_VALUES`, `EVOLUTION_API_MESSAGE_ID_PATH`, `EVOLUTION_API_IDEMPOTENCY_HEADER`, `EVOLUTION_API_TIMEOUT_MS` y `EVOLUTION_API_VALIDATED_PROFILE_SHA256`.
+Variables servidor reales: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET_B64`, `CANONICAL_SITE_ORIGIN`, `WHATSAPP_DISPATCH_ENABLED`, `WHATSAPP_PRIVATE_MEDIA_ENABLED`, `ADMIN_MESSAGE_RECIPIENT_HMAC_SECRET_B64`, `EVOLUTION_API_BASE_URL`, `EVOLUTION_API_INSTANCE`, `EVOLUTION_API_KEY`, `EVOLUTION_API_SEND_DOCUMENT_PATH_TEMPLATE`, `EVOLUTION_API_AUTH_HEADER`, `EVOLUTION_API_AUTH_SCHEME`, `EVOLUTION_API_DESTINATION_FIELD_PATH`, `EVOLUTION_API_MEDIA_URL_FIELD_PATH`, `EVOLUTION_API_FILENAME_FIELD_PATH`, `EVOLUTION_API_MIME_TYPE_FIELD_PATH`, `EVOLUTION_API_CAPTION_FIELD_PATH`, `EVOLUTION_API_MEDIA_KIND_FIELD_PATH`, `EVOLUTION_API_MEDIA_KIND_VALUE`, `EVOLUTION_API_DESTINATION_FORMAT`, `EVOLUTION_API_ACCEPTED_HTTP_STATUSES`, `EVOLUTION_API_SUCCESS_MODE`, `EVOLUTION_API_RESULT_FIELD_PATH`, `EVOLUTION_API_ACCEPTED_VALUES`, `EVOLUTION_API_MEDIA_REJECTED_VALUES`, `EVOLUTION_API_URL_ONLY_VALUES`, `EVOLUTION_API_MESSAGE_ID_PATH`, `EVOLUTION_API_IDEMPOTENCY_HEADER`, `EVOLUTION_API_TIMEOUT_MS`, `EVOLUTION_API_VALIDATED_PROFILE_SHA256` y `EVOLUTION_API_PRIVATE_MEDIA_VALIDATED_PROFILE_SHA256`.
 
-Cada cambio de URL, ruta, campos, estados, timeout o formato Evolution requiere revalidar el PDF adjunto y actualizar el fingerprint no secreto. Las cabeceras globales no fijan caché privada; el PDF inmutable recibe MIME/caché específica y las respuestas admin mantienen `private, no-store`, `DENY` y `no-referrer`.
+Cada cambio de URL, ruta, campos, estados, timeout, formato Evolution o límites privados (4 MiB crudos/6 MiB serializados) requiere revalidar el PDF adjunto y actualizar el fingerprint no secreto. El cambio de `client_max_body_size` del proxy es solo fuente y requiere despliegue manual; la capacidad privada permanece deshabilitada hasta esa validación. Las cabeceras globales no fijan caché privada; el PDF inmutable recibe MIME/caché específica y las respuestas admin mantienen `private, no-store`, `DENY` y `no-referrer`.

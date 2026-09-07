@@ -2,15 +2,17 @@
 import RegistrationStates from '../../../components/admin/RegistrationStates.astro';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getDatabase } from '../../../lib/database';
+import {
+  PARTICIPANT_RESPONSE_OPTIONS,
+  REVIEW_STATE_OPTIONS,
+  participantResponseLabel,
+  reviewStateLabel,
+} from '../../../lib/server/admin/registration-labels';
 import { presentRegistration } from '../../../lib/server/admin/registration-presentation';
 import { createRegistrationReadRepository, type RegistrationDetail } from '../../../lib/server/admin/registration-read-repository';
+import { createAdminMessageRuntime } from '../../../lib/server/admin/admin-message-runtime';
+import type { AdminMessageJobSummary } from '../../../lib/server/admin/admin-message-contracts';
 
-const reviewOptions = [
-  ['received', 'Recibida'], ['under_review', 'En revisión'], ['selected', 'Seleccionada'], ['rejected', 'No seleccionada'], ['withdrawn', 'Retirada'],
-] as const;
-const participantOptions = [
-  ['not_requested', 'No solicitada'], ['pending', 'Pendiente'], ['confirmed', 'Confirmada'], ['declined', 'Rechazada'],
-] as const;
 const auditActions = {
   review_state_changed: 'Revisión de inscripción',
   participant_response_changed: 'Respuesta del participante',
@@ -31,10 +33,19 @@ function safeHttpsUrl(value: string): string | null {
   }
 }
 
+function auditActionLabel(action: string) {
+  if (action === 'review_state_changed' || action === 'participant_response_changed') return auditActions[action];
+  return 'Cambio de estado';
+}
+
 function auditLabel(action: string, value: string | null) {
-  if (!value || !(action in auditActions)) return 'No disponible';
-  const options = action === 'review_state_changed' ? reviewOptions : participantOptions;
-  return options.find(([key]) => key === value)?.[1] ?? 'No disponible';
+  if (!value || (action !== 'review_state_changed' && action !== 'participant_response_changed')) return 'No disponible';
+  return action === 'review_state_changed' ? reviewStateLabel(value) : participantResponseLabel(value);
+}
+
+function receiptOutcomeLabel(outcome: string) {
+  if (outcome === 'in_progress' || outcome === 'sent' || outcome === 'failed' || outcome === 'uncertain') return receiptOutcomes[outcome];
+  return 'Estado no disponible';
 }
 
 function stalePending(receipt: RegistrationDetail['receipt']) {
@@ -42,9 +53,16 @@ function stalePending(receipt: RegistrationDetail['receipt']) {
 }
 
 let registration: RegistrationDetail | null = null;
+let confirmationJob: AdminMessageJobSummary | null = null;
+let privateMessagesReady = false;
 let unavailable = false;
+const confirmationNonce = crypto.randomUUID();
 try {
-  registration = await createRegistrationReadRepository(getDatabase()).findById(Astro.params.id ?? '');
+  const database = getDatabase();
+  registration = await createRegistrationReadRepository(database).findById(Astro.params.id ?? '');
+  const runtime = createAdminMessageRuntime(database, import.meta.env);
+  privateMessagesReady = runtime.ready;
+  if (registration && 'repository' in runtime) confirmationJob = (await runtime.repository.list(100)).find((job) => job.kind === 'confirmation' && job.registrationNumbers.includes(registration!.registrationNumber)) ?? null;
 } catch {
   unavailable = true;
 }
@@ -67,11 +85,11 @@ else if (!registration) Astro.response.status = 404;
     const staleReceipt = stalePending(registration.receipt);
     return <section class="admin-detail" aria-labelledby="detail-title">
       <a class="admin-back" href="/admin">Volver a las inscripciones recibidas</a>
-      <p class="eyebrow">Inscripción recibida</p>
+      <p class="eyebrow">Inscripción N.º {registration.registrationNumber}</p>
       <h1 id="detail-title">{registration.fullName}</h1>
       <dl class="admin-detail-list">
-        <div><dt>Correo electrónico</dt><dd>{registration.email}</dd></div>
-        <div><dt>Teléfono</dt><dd>{view.phone}</dd></div>
+        <div><dt>Correo electrónico</dt><dd><a href={`mailto:${registration.email}`}>{registration.email}</a></dd></div>
+        <div><dt>Teléfono</dt><dd>{registration.phoneE164 ? <a href={`tel:${registration.phoneE164}`}>{view.phone}</a> : view.phone}</dd></div>
         <div><dt>Fecha de inscripción</dt><dd><time datetime={registration.createdAt}>{registration.createdAt}</time></dd></div>
         <div><dt>Versión de bases</dt><dd>{registration.termsVersion ?? 'No disponible (registro anterior)'}</dd></div>
       </dl>
@@ -95,7 +113,7 @@ else if (!registration) Astro.response.status = 404;
             {registration.receipt.lastErrorCode && <div><dt>Diagnóstico seguro</dt><dd>{registration.receipt.lastErrorCode}: {registration.receipt.lastErrorMessage}</dd></div>}
           </dl>
           {registration.receipt.attempts.length > 0 && <ol class="admin-history" aria-label="Historial de intentos de acuse">
-            {registration.receipt.attempts.map((attempt) => <li><strong>{receiptTriggers[attempt.trigger]} — {receiptOutcomes[attempt.outcome as keyof typeof receiptOutcomes] ?? 'Estado no disponible'}</strong><br />
+            {registration.receipt.attempts.map((attempt) => <li><strong>{receiptTriggers[attempt.trigger]} — {receiptOutcomeLabel(attempt.outcome)}</strong><br />
               <time datetime={attempt.startedAt}>{attempt.startedAt}</time>{attempt.completedAt && <> · <time datetime={attempt.completedAt}>{attempt.completedAt}</time></>}
               {attempt.errorCode && <><br />Diagnóstico seguro: {attempt.errorCode}</>}
             </li>)}
@@ -128,7 +146,22 @@ else if (!registration) Astro.response.status = 404;
         </>}
       </section>
 
-      <section class="admin-lifecycle-forms" aria-labelledby="actions-title">
+      <section aria-labelledby="confirmation-title">
+            <h2 id="confirmation-title">Confirmación manual de plaza</h2>
+            <p class="admin-note">Esta acción es independiente del acuse documental y no cambia la revisión ni la respuesta del participante.</p>
+            {confirmationJob ? <p>Ya existe un envío para esta confirmación: <a href={`/admin/envios/${encodeURIComponent(confirmationJob.id)}`}>ver estado ({confirmationJob.state})</a>.</p>
+              : registration.reviewState !== 'selected' ? <p class="admin-message">Disponible únicamente cuando la revisión sea <strong>Seleccionada</strong>.</p>
+              : !registration.phoneE164 || !registration.termsVersion ? <p class="admin-message">Faltan un teléfono argentino válido o la versión histórica de bases.</p>
+              : !privateMessagesReady ? <p class="admin-message" role="alert">El envío privado está deshabilitado hasta completar una validación humana controlada. No se creará ningún envío.</p>
+              : <form class="admin-recovery-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/confirmation/send`} method="post">
+                <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken}/><input type="hidden" name="operationNonce" value={confirmationNonce}/>
+                <p>Destino registrado: {view.phone}. Se adjuntarán las bases {registration.termsVersion}.</p>
+                <label><input type="checkbox" name="confirmPlace" value="1" required/> Confirmo explícitamente que esta plaza fue aceptada y quiero enviar la confirmación por WhatsApp.</label>
+                <button type="submit">Enviar confirmación de plaza</button>
+              </form>}
+          </section>
+
+          <section class="admin-lifecycle-forms" aria-labelledby="actions-title">
         <h2 id="actions-title">Actualizar estados</h2>
         <form action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/review-state`} method="post">
           <h3>Revisión de inscripción</h3>
@@ -136,7 +169,7 @@ else if (!registration) Astro.response.status = 404;
           <input type="hidden" name="stateVersion" value={registration.stateVersion} />
           <label for="review-state">Nuevo estado de revisión</label>
           <select id="review-state" name="reviewState">
-            {reviewOptions.map(([value, label]) => <option value={value} selected={registration.reviewState === value}>{label}</option>)}
+            {REVIEW_STATE_OPTIONS.map(([value, label]) => <option value={value} selected={registration.reviewState === value}>{label}</option>)}
           </select>
           <button type="submit">Guardar revisión</button>
         </form>
@@ -146,7 +179,7 @@ else if (!registration) Astro.response.status = 404;
           <input type="hidden" name="stateVersion" value={registration.stateVersion} />
           <label for="participant-response">Nueva respuesta del participante</label>
           <select id="participant-response" name="participantResponse">
-            {participantOptions.map(([value, label]) => <option value={value} selected={registration.participantResponseState === value}>{label}</option>)}
+            {PARTICIPANT_RESPONSE_OPTIONS.map(([value, label]) => <option value={value} selected={registration.participantResponseState === value}>{label}</option>)}
           </select>
           <button type="submit">Guardar respuesta</button>
         </form>
@@ -156,7 +189,7 @@ else if (!registration) Astro.response.status = 404;
       <section aria-labelledby="audit-title">
         <h2 id="audit-title">Historial de auditoría</h2>
         {registration.auditEvents.length === 0 ? <p class="admin-note">No hay cambios de estado registrados.</p> : <ol class="admin-history">
-          {registration.auditEvents.map((event) => <li><strong>{auditActions[event.action as keyof typeof auditActions] ?? 'Cambio de estado'}</strong><br />
+          {registration.auditEvents.map((event) => <li><strong>{auditActionLabel(event.action)}</strong><br />
             {auditLabel(event.action, event.fromValue)} → {auditLabel(event.action, event.toValue)}<br />
             <time datetime={event.createdAt}>{event.createdAt}</time>
           </li>)}
