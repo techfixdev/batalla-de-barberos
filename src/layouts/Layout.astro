@@ -38,6 +38,7 @@ const path = Astro.url.pathname;
       </a>
       <nav aria-label="Navegación principal">
         <a href="/" aria-current={path === '/' ? 'page' : undefined}>Inicio</a>
+        <a href="/#categorias">Categorías</a>
         <a href="/#inscripcion">Inscripción</a>
         <a href="/participacion" aria-current={path === '/participacion' ? 'page' : undefined}>Participación</a>
       </nav>
@@ -54,7 +55,7 @@ const path = Astro.url.pathname;
     </footer>
     <script>
       const publicSite = document.body;
-      const feedbackSelector = 'h1, h2, h3, p, dt, dd, li:not(:has(p)), label, legend, .brand-name, .brand-subtitle, .eyebrow, .section-number, .rule-card__number, .rule-card__duration, .event-place, .form-status, .field-error, .signup-aside > span, a:not(.button), .poster-rule, .phrase-rule, hr';
+      const feedbackSelector = 'h1, h2, h3, p, dt, dd, li:not(:has(p)), label, legend, .brand-name, .brand-subtitle, .eyebrow, .rule-card__number, .rule-card__duration, .event-place, .form-status, .field-error, .signup-aside > span, a:not(.button), .poster-rule, .phrase-rule, hr';
       const movementLimit = 10;
       let activeTarget: HTMLElement | null = null;
       let activePointerId: number | null = null;

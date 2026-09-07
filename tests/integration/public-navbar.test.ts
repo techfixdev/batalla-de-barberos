@@ -57,13 +57,22 @@ describe('public navbar branding', () => {
     expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.brand-emblem\s*\{[^}]*width:\s*3\.6rem[^}]*height:\s*2\.7rem/);
   });
 
-  it('uses a readable two-row header at narrow mobile widths', async () => {
+  it('adds the categories anchor while preserving the existing active navigation cues', async () => {
+    const layout = await source('src/layouts/Layout.astro');
+
+    expect(layout).toContain('<a href="/#categorias">Categorías</a>');
+    expect(layout).toContain('<a href="/" aria-current={path === \'/\' ? \'page\' : undefined}>Inicio</a>');
+    expect(layout).toContain('<a href="/#inscripcion">Inscripción</a>');
+    expect(layout).toContain('<a href="/participacion" aria-current={path === \'/participacion\' ? \'page\' : undefined}>Participación</a>');
+  });
+
+  it('uses a readable four-column header at narrow mobile widths', async () => {
     const css = await source('src/styles/global.css');
 
     expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header\s*\{[^}]*flex-direction:\s*column[^}]*padding-inline:\s*\.75rem/);
     expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header \.brand-emblem\s*\{[^}]*width:\s*4rem[^}]*height:\s*3rem/);
     expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header \.brand-subtitle\s*\{[^}]*font-size:\s*\.6875rem/);
-    expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header nav\s*\{[^}]*width:\s*100%[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header nav\s*\{[^}]*width:\s*100%[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(44px,\s*1fr\)\)/);
     expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header nav a\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px[^}]*font-size:\s*\.6875rem/);
     expect(css).not.toMatch(/@media \(max-width: 370px\)[^]*\.site-header(?:\s|\.)/);
   });

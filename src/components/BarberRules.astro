@@ -1,8 +1,8 @@
 ---
-import terms from '../../content/draft-terms/draft-2026-09-v2.json';
+import terms from '../../content/draft-terms/draft-2026-09-v3.json';
 ---
 
-<section class="barber-rules" aria-labelledby="rules-title">
+<section id="categorias" class="barber-rules" aria-labelledby="rules-title">
   <header class="rules-heading">
     <p class="eyebrow">Reglamento de competencia</p>
     <h2 id="rules-title">Cinco categorías.<br /><span>Un solo pulso.</span></h2>
@@ -11,8 +11,8 @@ import terms from '../../content/draft-terms/draft-2026-09-v2.json';
 
   <div class="rules-grid">
     {terms.categories.map((category) => (
-      <article class="rule-card" aria-labelledby={`rule-category-${category.number}`}>
-        <header class="rule-card__heading">
+      <details class="rule-card" aria-labelledby={`rule-category-${category.number}`}>
+        <summary class="rule-card__heading">
           <span class="rule-card__number" aria-hidden="true">{category.number}</span>
           <div>
             <h3 id={`rule-category-${category.number}`}>{category.name}</h3>
@@ -21,11 +21,16 @@ import terms from '../../content/draft-terms/draft-2026-09-v2.json';
               <time datetime={category.datetime}>{category.duration}</time>
             </p>
           </div>
-        </header>
+          <span class="rule-card__toggle">
+            <span class="rule-card__toggle-open">Ver reglas</span>
+            <span class="rule-card__toggle-close">Ocultar reglas</span>
+            <span class="rule-card__chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
         <ul>
           {category.rules.map((rule) => <li>{rule}</li>)}
         </ul>
-      </article>
+      </details>
     ))}
   </div>
 </section>

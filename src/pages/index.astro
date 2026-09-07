@@ -26,11 +26,15 @@ import nightPoster from '../assets/barber-battle/varela-night-background.png';
     </div>
 
     <div class="poster-copy">
-      <img class="hero-emblem" data-hero-shears-origin src={logo.src} width={logo.width} height={logo.height} alt="" />
-      <h1 id="hero-title">
-        <span class="event-presenter">Entre Cortes</span>
-        <span class="event-title">Batalla de Barberos</span>
-      </h1>
+      <div class="hero-brand-lockup">
+        <div class="hero-emblem-slot">
+          <img class="hero-emblem" data-hero-shears-origin src={logo.src} width={logo.width} height={logo.height} alt="" />
+        </div>
+        <h1 id="hero-title">
+          <span class="event-presenter">Entre Cortes</span>
+          <span class="event-title">Batalla de Barberos</span>
+        </h1>
+      </div>
       <div class="poster-rule" aria-hidden="true"><GoldShears /></div>
       <p class="event-date"><strong>08</strong><span>de<br />noviembre</span></p>
       <p class="event-place">Florencio Varela</p>
@@ -100,7 +104,6 @@ import nightPoster from '../assets/barber-battle/varela-night-background.png';
   </script>
 
   <section class="manifesto" aria-labelledby="manifesto-title">
-    <p class="section-number" aria-hidden="true">02</p>
     <div>
       <p class="eyebrow">Más que una competencia</p>
       <h2 id="manifesto-title">Acá se viene a dejar <em>marca.</em></h2>

@@ -17,11 +17,11 @@ describe('public competition categories', () => {
       readFile(resolve(root, 'src/components/BarberRules.astro'), 'utf8'),
       readFile(resolve(root, 'src/pages/index.astro'), 'utf8'),
       readFile(resolve(root, 'src/components/SignupForm.astro'), 'utf8'),
-      readFile(resolve(root, 'content/draft-terms/draft-2026-09-v2.json'), 'utf8'),
+      readFile(resolve(root, 'content/draft-terms/draft-2026-09-v3.json'), 'utf8'),
     ]);
     const source = JSON.parse(sourceText) as { categories: Array<{ name: string; duration: string; rules: string[] }> };
 
-    expect(component).toContain("import terms from '../../content/draft-terms/draft-2026-09-v2.json';");
+    expect(component).toContain("import terms from '../../content/draft-terms/draft-2026-09-v3.json';");
     expect(component).toContain('terms.categories.map');
     expect(index).toContain("import BarberRules from '../components/BarberRules.astro';");
     expect(index).toContain('<BarberRules />');
@@ -30,8 +30,22 @@ describe('public competition categories', () => {
     expect(signup).not.toMatch(/name=["']category|name=["']categoria/i);
   });
 
+  it('renders each category as an independent initially-collapsed native disclosure', async () => {
+    const component = await readFile(resolve(root, 'src/components/BarberRules.astro'), 'utf8');
+
+    expect(component).toContain('<section id="categorias" class="barber-rules"');
+    expect(component).toMatch(/<details class="rule-card"[^>]*>\s*<summary class="rule-card__heading">/);
+    expect(component).not.toMatch(/<details class="rule-card"[^>]*\sopen(?:\s|>)/);
+    expect(component).toContain('<span class="rule-card__toggle">');
+    expect(component).toContain('<span class="rule-card__toggle-open">Ver reglas</span>');
+    expect(component).toContain('<span class="rule-card__toggle-close">Ocultar reglas</span>');
+    expect(component).toContain('<span class="rule-card__chevron" aria-hidden="true">⌄</span>');
+    expect(component).toMatch(/<\/summary>\s*<ul>/);
+    expect(component).not.toContain('<article class="rule-card"');
+  });
+
   it('keeps every approved historical requirement, restriction, and judging criterion verbatim', async () => {
-    const source = JSON.parse(await readFile(resolve(root, 'content/draft-terms/draft-2026-09-v2.json'), 'utf8')) as {
+    const source = JSON.parse(await readFile(resolve(root, 'content/draft-terms/draft-2026-09-v3.json'), 'utf8')) as {
       categories: Array<{ rules: string[] }>;
     };
     const rules = source.categories.flatMap((category) => category.rules);
