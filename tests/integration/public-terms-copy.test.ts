@@ -34,9 +34,13 @@ describe('public draft terms copy', () => {
     for (const { page, importPath } of surfaces) {
       expect(page).toContain(`import DraftTermsLink from '${importPath}';`);
       expect(page).toContain('<DraftTermsLink />');
-      expect(page).not.toContain('/documentos/bases-y-categorias/borrador-2026-09-v1.pdf');
+      expect(page).not.toMatch(/\/documentos\/bases-y-categorias\/borrador-2026-09-v[12]\.pdf/);
     }
-    expect(getCurrentDraftTerms().legalMarker).toBe(marker);
+    expect(getCurrentDraftTerms()).toEqual(expect.objectContaining({
+      version: 'draft-2026-09-v2',
+      legalMarker: marker,
+      publicPath: '/documentos/bases-y-categorias/borrador-2026-09-v2.pdf',
+    }));
   });
 
   it('keeps all public draft references behind the marked shared component', async () => {
@@ -52,7 +56,7 @@ describe('public draft terms copy', () => {
     expect((participation.match(/<DraftTermsLink/g) ?? [])).toHaveLength(2);
     expect((privacy.match(/<DraftTermsLink/g) ?? [])).toHaveLength(2);
     for (const page of [signup, participation, privacy]) {
-      expect(page).not.toMatch(/borrador-2026-09-v1\.pdf/);
+      expect(page).not.toMatch(/borrador-2026-09-v[12]\.pdf/);
     }
   });
 
@@ -89,6 +93,9 @@ describe('public draft terms copy', () => {
     expect(participation).not.toContain('su respuesta posterior de la persona participante');
     expect(participation).toContain('no implica selección');
     expect(participation).toContain('no invalida la inscripción guardada');
+    expect(participation).toContain('no asignan una categoría');
+    expect(participation).toContain('BORRADOR — PENDIENTE DE REVISIÓN LEGAL');
+    expect(participation).not.toContain('Los datos de categorías, requisitos, horarios, materiales, criterios de evaluación');
     expect(privacy).toContain('Evolution API/WhatsApp');
     expect(privacy).toContain('no invalida la inscripción guardada');
     expect(privacy).toContain('no constituye consentimiento legal');

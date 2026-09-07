@@ -1,8 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-const DEFAULT_SOURCE = 'content/draft-terms/draft-2026-09-v1.json';
-const DEFAULT_OUTPUT = 'public/documentos/bases-y-categorias/borrador-2026-09-v1.pdf';
+const DEFAULT_SOURCE = 'content/draft-terms/draft-2026-09-v2.json';
+const DEFAULT_OUTPUT = 'public/documentos/bases-y-categorias/borrador-2026-09-v2.pdf';
 const MARKER = 'BORRADOR — PENDIENTE DE REVISIÓN LEGAL';
 const decoder = new TextDecoder('windows-1252');
 
@@ -37,17 +37,28 @@ function pageStream(lines) {
 
 function object(id, body) { return `${id} 0 obj\n${body}\nendobj\n`; }
 
-export function createTermsPdf(source) {
-  if (source.version !== 'draft-2026-09-v1' || source.legalMarker !== MARKER || source.categories?.length !== 4) {
-    throw new Error('Draft terms source does not match the immutable v1 contract');
+function pagesForSource(source) {
+  if (source.version === 'draft-2026-09-v1' && source.legalMarker === MARKER && source.categories?.length === 4) {
+    const categoryLines = source.categories.flatMap((category) => [category.name, category.eligibility, category.work, category.unresolved]);
+    return [
+      [MARKER, source.title, source.intro, 'Versión: draft-2026-09-v1', 'Categorías propuestas — contenido no final.'],
+      [MARKER, ...categoryLines.slice(0, 8)],
+      [MARKER, ...categoryLines.slice(8), 'Requisitos compartidos — contenido no final.', ...source.sharedRequirements.slice(0, 3)],
+      [MARKER, ...source.sharedRequirements.slice(3)],
+    ];
   }
-  const categoryLines = source.categories.flatMap((category) => [category.name, category.eligibility, category.work, category.unresolved]);
-  const pages = [
-    [MARKER, source.title, source.intro, 'Versión: draft-2026-09-v1', 'Categorías propuestas — contenido no final.'],
-    [MARKER, ...categoryLines.slice(0, 8)],
-    [MARKER, ...categoryLines.slice(8), 'Requisitos compartidos — contenido no final.', ...source.sharedRequirements.slice(0, 3)],
-    [MARKER, ...source.sharedRequirements.slice(3)],
-  ];
+  if (source.version === 'draft-2026-09-v2' && source.legalMarker === MARKER && source.categories?.length === 5) {
+    return [
+      [MARKER, source.title, source.intro, `Versión: ${source.version}`, 'Cinco categorías y reglas de competencia.'],
+      ...source.categories.map((category) => [MARKER, `${category.number} — ${category.name}`, `Duración: ${category.duration}`, ...category.rules]),
+      [MARKER, 'Requisitos compartidos — contenido pendiente de revisión legal.', ...source.sharedRequirements],
+    ];
+  }
+  throw new Error('Draft terms source does not match a supported immutable contract');
+}
+
+export function createTermsPdf(source) {
+  const pages = pagesForSource(source);
   const streams = pages.map(pageStream);
   const pageIds = pages.map((_, index) => 4 + index * 2);
   const objects = [

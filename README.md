@@ -51,6 +51,12 @@ The in-memory request limiter is a lightweight abuse control scoped to each serv
 
 `POST /api/signups` validates and normalizes form data, applies a small rate limit, and inserts accepted submissions into Turso. Email addresses are unique. Run `pnpm migrate` before accepting signups.
 
+## Bases y categorías publicadas
+
+La versión vigente es `draft-2026-09-v2`: publica las cinco categorías y sus reglas completas desde una única fuente compartida por la web y el PDF. Conserva la marca `BORRADOR — PENDIENTE DE REVISIÓN LEGAL` y los pendientes generales; no asigna una categoría durante la inscripción.
+
+La versión histórica `draft-2026-09-v1` y su PDF permanecen disponibles con su URL y checksum originales. Nunca se reemplazan bytes de una versión publicada: cada actualización agrega una fuente, un PDF, una entrada de manifiesto y cabeceras inmutables nuevos.
+
 ## Accessibility
 
 The site uses semantic landmarks, a skip link, visible focus states, associated form labels, live status messages, reduced-motion handling, responsive layouts, and server/client validation. Manual keyboard and screen-reader testing is still recommended before launch.

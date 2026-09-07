@@ -168,7 +168,7 @@ describe('signup identity and orchestration', () => {
       expect(saved.status).toBe(201);
       expect(getDatabaseMock).toHaveBeenCalledTimes(1);
       expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
-        .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v1.pdf' }]);
+        .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v2.pdf' }]);
       expect(fetchSpy).not.toHaveBeenCalled();
 
       getDatabaseMock.mockClear();
@@ -197,7 +197,7 @@ describe('signup identity and orchestration', () => {
 
     expect(response.status).toBe(201);
     expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
-      .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v1.pdf' }]);
+      .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v2.pdf' }]);
 
     let databaseUsed = false;
     const blocked = createSignupPost({
