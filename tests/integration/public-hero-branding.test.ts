@@ -19,12 +19,13 @@ describe('public hero branding', () => {
     expect(page).toContain('<dl class="event-facts" aria-label="Datos del evento">');
   });
 
-  it('reserves centered, responsive logo space without rotating the hero emblem', async () => {
+  it('enlarges the centered hero emblem by 25% at desktop and mobile scales without rotating it', async () => {
     const css = await source('src/styles/global.css');
 
-    expect(css).toMatch(/\.hero-emblem\s*\{[^}]*width:\s*clamp\([^}]*margin:\s*0 auto/);
+    expect(css).toMatch(/\.hero-emblem\s*\{[^}]*width:\s*clamp\(8\.125rem,\s*17\.5vw,\s*11\.25rem\)[^}]*margin:\s*0 auto/);
     expect(css).not.toMatch(/\.hero-emblem\s*\{[^}]*rotate/);
-    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.hero-emblem\s*\{[^}]*width:/);
+    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.hero-emblem\s*\{[^}]*width:\s*clamp\(7\.1875rem,\s*32\.5vw,\s*9\.0625rem\)/);
+    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.event-presenter\s*\{[^}]*font-size:\s*clamp\(2\.65rem,\s*13\.25vw,\s*3\.9rem\)/);
   });
 
   it('measures both logo-to-scissors axes after fonts settle and triggers one rise', async () => {

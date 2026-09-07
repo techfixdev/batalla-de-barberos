@@ -26,6 +26,17 @@ describe('public navbar branding', () => {
     expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header \.brand-subtitle\s*\{[^}]*font-size:\s*\.6875rem/);
   });
 
+  it('shares semantic typography with the hero while preserving independent scale', async () => {
+    const css = await source('src/styles/global.css');
+
+    expect(css).toMatch(/--brand-name-tracking:\s*\.08em/);
+    expect(css).toMatch(/--brand-subtitle-tracking:\s*\.12em/);
+    expect(css).toMatch(/\.site-header \.brand-name,\s*\.event-presenter\s*\{[^}]*font-family:\s*var\(--display\)[^}]*font-weight:\s*400[^}]*letter-spacing:\s*var\(--brand-name-tracking\)/);
+    expect(css).toMatch(/\.site-header \.brand-subtitle,\s*\.event-title\s*\{[^}]*font-family:\s*var\(--utility\)[^}]*font-weight:\s*600[^}]*letter-spacing:\s*var\(--brand-subtitle-tracking\)/);
+    expect(css).toMatch(/\.site-header \.brand-name\s*\{[^}]*font:\s*400 1\.2rem\/\.92 var\(--display\)/);
+    expect(css).toMatch(/\.event-presenter\s*\{[^}]*font:\s*400 clamp\(3\.6rem,\s*7\.2vw,\s*6\.5rem\)\/\.84 var\(--display\)/);
+  });
+
   it('removes only the header corner rule while retaining navigation cues and the neutral border', async () => {
     const css = await source('src/styles/global.css');
 
