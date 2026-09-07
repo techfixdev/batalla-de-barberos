@@ -403,3 +403,23 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
   .rule-card__toggle { grid-column: 1 / -1; justify-content: space-between; border-top: 1px solid var(--line-soft); }
   .rule-card h3 { font-size: 2rem; }
 }
+
+/* Authenticated admin identity: static, scoped, and independent from public-site interactions. */
+.admin-page .admin-header { padding-block: .55rem; }
+.admin-page .admin-brand { display: inline-flex; min-width: 0; min-height: 44px; align-items: center; gap: .8rem; }
+.admin-page .admin-brand__emblem { display: block; overflow: hidden; width: 6rem; height: 4rem; flex: none; margin: 0; background: #080909; border: 1px solid rgba(224,187,97,.38); }
+.admin-page .admin-brand__emblem img { width: 100%; height: 100%; object-fit: cover; }
+.admin-page .admin-brand__copy { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.admin-page .admin-brand__presenter { margin: 0; color: var(--gold-bright); font: 700 .67rem/1 var(--utility); letter-spacing: .2em; }
+.admin-page .admin-brand__event { margin: .25rem 0 0; color: var(--ivory); font: 400 1.55rem/.9 var(--display); letter-spacing: var(--brand-name-tracking); white-space: nowrap; }
+.admin-page .admin-brand__area { margin: .32rem 0 0; color: var(--gold-bright); font: 700 .64rem/1 var(--utility); letter-spacing: var(--brand-subtitle-tracking); }
+
+@media (max-width: 650px) {
+  .admin-page .admin-header { min-height: 5.75rem; }
+  .admin-page .admin-brand { gap: .5rem; }
+  .admin-page .admin-brand__emblem { width: 4.5rem; height: 3rem; }
+  .admin-page .admin-brand__presenter { font-size: .58rem; }
+  .admin-page .admin-brand__event { font-size: clamp(.92rem, 4vw, 1.2rem); white-space: normal; }
+  .admin-page .admin-brand__area { font-size: .56rem; }
+  .admin-page .admin-logout { padding-inline: .65rem; }
+}

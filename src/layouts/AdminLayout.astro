@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import emblem from '../assets/barber-battle/entre-cortes-logo-ai.png';
 
 const { csrfToken } = Astro.props;
 ---
@@ -15,7 +16,14 @@ const { csrfToken } = Astro.props;
   <body class="admin-page">
     <a class="skip-link" href="#contenido-admin">Saltar al contenido</a>
     <header class="admin-header">
-      <a class="admin-brand" href="/admin">Batalla de Barberos <span>Administración</span></a>
+      <a class="admin-brand" href="/admin">
+        <span class="admin-brand__emblem" aria-hidden="true"><img src={emblem.src} alt="" width="1536" height="1024" /></span>
+        <span class="admin-brand__copy">
+          <span class="admin-brand__presenter">Entre Cortes</span>
+          <span class="admin-brand__event">Batalla de Barberos</span>
+          <span class="admin-brand__area">Administración</span>
+        </span>
+      </a>
       <form action="/api/admin/logout" method="post">
         <input type="hidden" name="csrf" value={csrfToken} />
         <button class="admin-logout" type="submit">Cerrar sesión</button>
