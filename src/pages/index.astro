@@ -4,6 +4,7 @@ import GoldShears from '../components/GoldShears.astro';
 import SignupForm from '../components/SignupForm.astro';
 import Layout from '../layouts/Layout.astro';
 import barbers from '../assets/barber-battle/barbers-foreground.png';
+import logo from '../assets/barber-battle/entre-cortes-logo-ai.png';
 import nightVideo from '../assets/barber-battle/varela-night-background.mp4';
 import nightPoster from '../assets/barber-battle/varela-night-background.png';
 ---
@@ -25,7 +26,7 @@ import nightPoster from '../assets/barber-battle/varela-night-background.png';
     </div>
 
     <div class="poster-copy">
-      <p class="edition"><span>1ra</span> edición</p>
+      <img class="hero-emblem" data-hero-shears-origin src={logo.src} width={logo.width} height={logo.height} alt="" />
       <h1 id="hero-title">
         <span class="event-presenter">Entre Cortes</span>
         <span class="event-title">Batalla de Barberos</span>
@@ -48,6 +49,55 @@ import nightPoster from '../assets/barber-battle/varela-night-background.png';
       </dl>
     </div>
   </section>
+
+  <script>
+    const hero = document.querySelector<HTMLElement>('.hero');
+    const origin = hero?.querySelector<HTMLElement>('[data-hero-shears-origin]');
+    const shears = hero?.querySelector<HTMLElement>('.beam-scissor');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    if (hero && origin && shears && !reducedMotion.matches) {
+      hero.classList.add('hero-shears-pending');
+
+      const settleAtFinalPosition = () => {
+        hero.classList.remove('hero-shears-pending', 'hero-shears-ready');
+        shears.style.removeProperty('--hero-origin-x');
+        shears.style.removeProperty('--hero-origin-y');
+        reducedMotion.removeEventListener('change', handleMotionPreference);
+      };
+      const handleMotionPreference = (event: MediaQueryListEvent) => {
+        if (event.matches) settleAtFinalPosition();
+      };
+      const revealAtMeasuredOrigin = () => {
+        requestAnimationFrame(() => {
+          if (reducedMotion.matches) {
+            settleAtFinalPosition();
+            return;
+          }
+
+          const originRect = origin.getBoundingClientRect();
+          const shearsRect = shears.getBoundingClientRect();
+          if (!originRect.width || !originRect.height || !shearsRect.width || !shearsRect.height) {
+            settleAtFinalPosition();
+            return;
+          }
+
+          const originX = originRect.left + originRect.width / 2;
+          const originY = originRect.top + originRect.height / 2;
+          const finalX = shearsRect.left + shearsRect.width / 2;
+          const finalY = shearsRect.top + shearsRect.height / 2;
+          shears.style.setProperty('--hero-origin-x', `${originX - finalX}px`);
+          shears.style.setProperty('--hero-origin-y', `${originY - finalY}px`);
+          hero.classList.remove('hero-shears-pending');
+          hero.classList.add('hero-shears-ready');
+          shears.addEventListener('animationend', settleAtFinalPosition, { once: true });
+        });
+      };
+
+      reducedMotion.addEventListener('change', handleMotionPreference);
+      document.fonts.ready.then(revealAtMeasuredOrigin, settleAtFinalPosition);
+    }
+  </script>
 
   <section class="manifesto" aria-labelledby="manifesto-title">
     <p class="section-number" aria-hidden="true">02</p>

@@ -24,7 +24,7 @@ const path = Astro.url.pathname;
     <link rel="icon" href="data:," />
     <title>{title}</title>
   </head>
-  <body>
+  <body class="public-site">
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header">
       <a class="brand" href="/" aria-label="Entre Cortes, Batalla de Barberos, inicio">
@@ -33,7 +33,7 @@ const path = Astro.url.pathname;
         </span>
         <span class="brand-copy">
           <span class="brand-name">ENTRECORTES</span>
-          <span class="brand-subtitle">batalla de barberos</span>
+          <span class="brand-subtitle">BATALLA DE BARBEROS</span>
         </span>
       </a>
       <nav aria-label="Navegación principal">
@@ -52,5 +52,47 @@ const path = Astro.url.pathname;
         <a href="/privacidad">Privacidad</a>
       </nav>
     </footer>
+    <script>
+      const publicSite = document.body;
+      const feedbackSelector = 'h1, h2, h3, p, dt, dd, li:not(:has(p)), label, legend, .brand-name, .brand-subtitle, .eyebrow, .section-number, .rule-card__number, .rule-card__duration, .event-place, .form-status, .field-error, .signup-aside > span, a:not(.button), .poster-rule, .phrase-rule, hr';
+      const movementLimit = 10;
+      let activeTarget: HTMLElement | null = null;
+      let activePointerId: number | null = null;
+      let startX = 0;
+      let startY = 0;
+
+      const clearPress = (pointerId?: number) => {
+        if (pointerId !== undefined && pointerId !== activePointerId) return;
+        activeTarget?.removeAttribute('data-public-press');
+        activeTarget = null;
+        activePointerId = null;
+      };
+
+      publicSite.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' || !event.isPrimary || activePointerId !== null) return;
+        if (!(event.target instanceof Element)) return;
+        const target = event.target.closest(feedbackSelector);
+        if (!(target instanceof HTMLElement) || !publicSite.contains(target)) return;
+
+        activeTarget = target;
+        activePointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        target.setAttribute('data-public-press', '');
+      });
+
+      publicSite.addEventListener('pointermove', (event) => {
+        if (event.pointerId !== activePointerId) return;
+        if (Math.hypot(event.clientX - startX, event.clientY - startY) > movementLimit) clearPress(event.pointerId);
+      });
+      publicSite.addEventListener('pointerup', (event) => clearPress(event.pointerId));
+      publicSite.addEventListener('pointercancel', (event) => clearPress(event.pointerId));
+      publicSite.addEventListener('lostpointercapture', (event) => clearPress(event.pointerId));
+      window.addEventListener('blur', () => clearPress());
+      window.addEventListener('scroll', () => clearPress(), { passive: true });
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearPress();
+      });
+    </script>
   </body>
 </html>

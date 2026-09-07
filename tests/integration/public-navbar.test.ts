@@ -15,7 +15,15 @@ describe('public navbar branding', () => {
     expect(layout).toContain("import logo from '../assets/barber-battle/entre-cortes-logo-ai.png';");
     expect(layout).toMatch(/<span class="brand-emblem"[^>]*>\s*<img[^>]+alt=""\s*\/>\s*<\/span>\s*<span class="brand-copy">/);
     expect(layout).toContain('<span class="brand-name">ENTRECORTES</span>');
-    expect(layout).toContain('<span class="brand-subtitle">batalla de barberos</span>');
+    expect(layout).toContain('<span class="brand-subtitle">BATALLA DE BARBEROS</span>');
+  });
+
+  it('centers the uppercase subtitle beneath the EntreCortes wordmark at every header breakpoint', async () => {
+    const css = await source('src/styles/global.css');
+
+    expect(css).toMatch(/\.site-header \.brand-copy\s*\{[^}]*align-items:\s*center[^}]*text-align:\s*center/);
+    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.site-header \.brand-subtitle\s*\{[^}]*font-size:\s*\.5(?:2|5)rem/);
+    expect(css).toMatch(/@media \(max-width: 480px\)[^]*\.site-header \.brand-subtitle\s*\{[^}]*font-size:\s*\.6875rem/);
   });
 
   it('removes only the header corner rule while retaining navigation cues and the neutral border', async () => {
@@ -31,9 +39,9 @@ describe('public navbar branding', () => {
     const css = await source('src/styles/global.css');
 
     expect(css).toMatch(/\.brand-emblem\s*\{[^}]*width:\s*5\.8rem[^}]*height:\s*4\.35rem/);
-    expect(css).toMatch(/\.brand-emblem img\s*\{[^}]*animation:\s*brand-emblem-spin 12s/);
-    expect(css).not.toMatch(/\.(?:brand|brand-copy|brand-name|brand-subtitle)\s*\{[^}]*animation:/);
-    expect(css).toMatch(/@keyframes brand-emblem-spin\s*\{[^]*0%,\s*82%[^}]*rotateY\(0deg\)[^]*96%,\s*100%[^}]*rotateY\(360deg\)/);
+    expect(css).toMatch(/\.brand-emblem img\s*\{[^}]*animation:\s*brand-emblem-spin 4s/);
+    expect(css).not.toMatch(/\.(?:brand|brand-copy|brand-name|brand-subtitle|hero-emblem)\s*\{[^}]*animation:\s*brand-emblem-spin/);
+    expect(css).toMatch(/@keyframes brand-emblem-spin\s*\{[^]*0%,\s*70%[^}]*rotateY\(0deg\)[^]*98%,\s*100%[^}]*rotateY\(360deg\)/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[^]*animation:\s*none !important/);
     expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.brand-emblem\s*\{[^}]*width:\s*3\.6rem[^}]*height:\s*2\.7rem/);
   });
