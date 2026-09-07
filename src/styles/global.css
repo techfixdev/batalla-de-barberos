@@ -27,12 +27,12 @@ button, input, select { font: inherit; }
 .skip-link { position: fixed; z-index: 100; top: .75rem; left: .75rem; padding: .7rem 1rem; color: var(--ink); background: var(--ivory); font-weight: 700; text-transform: uppercase; transform: translateY(-180%); transition: transform .2s; }
 .skip-link:focus { transform: translateY(0); }
 .site-header { position: relative; z-index: 20; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 5.75rem; padding-inline: max(1.5rem, calc((100vw - 1400px) / 2)); color: var(--ivory); background: linear-gradient(180deg, #0d0f0f, var(--ink)); border-bottom: 1px solid var(--line-soft); }
-.site-header::after { position: absolute; right: max(1.5rem, calc((100vw - 1400px) / 2)); bottom: -1px; width: clamp(4rem, 11vw, 10rem); height: 1px; background: var(--gold); content: ''; }
-.brand { display: inline-flex; min-width: 44px; min-height: 44px; gap: .65rem; align-items: center; color: var(--ivory); text-decoration: none; }
-.brand-emblem { display: block; overflow: hidden; width: 4.8rem; height: 3.6rem; flex: none; }
-.brand-emblem img { width: 100%; height: 100%; object-fit: contain; filter: brightness(1.22) contrast(1.08); }
-.brand-name { display: flex; flex-direction: column; color: var(--ivory-soft); font: 600 .72rem/1 var(--utility); letter-spacing: .32em; }
-.brand-name strong { color: var(--ivory); font: 400 1.2rem/.92 var(--display); letter-spacing: .14em; }
+.site-header .brand { display: inline-flex; min-width: 0; min-height: 44px; gap: .65rem; align-items: center; color: var(--ivory); text-decoration: none; }
+.site-header .brand-emblem { display: block; overflow: hidden; width: 5.8rem; height: 4.35rem; flex: none; perspective: 20rem; }
+.site-header .brand-emblem img { width: 100%; height: 100%; object-fit: contain; filter: brightness(1.22) contrast(1.08); transform: rotateY(0deg); animation: brand-emblem-spin 12s cubic-bezier(.4, 0, .2, 1) infinite; }
+.site-header .brand-copy { display: flex; min-width: 0; flex-direction: column; }
+.site-header .brand-name { color: var(--ivory); font: 400 1.2rem/.92 var(--display); letter-spacing: .11em; text-shadow: 0 0 .6rem rgba(224,187,97,.26); white-space: nowrap; }
+.site-header .brand-subtitle { margin-top: .28rem; color: var(--gold-bright); font: 600 .65rem/1 var(--utility); letter-spacing: .15em; white-space: nowrap; }
 .site-header nav, .site-footer nav { display: flex; gap: 1.35rem; }
 .site-header nav a, .site-footer a { position: relative; display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-decoration: none; text-transform: uppercase; }
 .site-header nav a::after { position: absolute; right: 0; bottom: .3rem; left: 0; height: 1px; background: var(--gold-bright); content: ''; transform: scaleX(0); transition: transform .2s ease; }
@@ -106,6 +106,7 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 .event-facts dt { color: var(--muted); font-size: .62rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
 .event-facts dd { margin: .15rem 0 0; color: var(--ivory); font: 400 .9rem/1 var(--display); text-transform: uppercase; }
 
+@keyframes brand-emblem-spin { 0%, 82% { transform: rotateY(0deg); } 96%, 100% { transform: rotateY(360deg); } }
 @keyframes background-arrival { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: scale(1.035); } }
 @keyframes fighter-left-arrival { from { opacity: 0; transform: translateX(-10%) scale(.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
 @keyframes fighter-right-arrival { from { opacity: 0; transform: translateX(10%) scale(.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
@@ -215,10 +216,10 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 
 @media (max-width: 650px) {
   .site-header { min-height: 5rem; padding-inline: .5rem; }
-  .brand { gap: .35rem; }
-  .brand-emblem { width: 3rem; height: 2.5rem; }
-  .brand-name { display: flex; font-size: .55rem; letter-spacing: .2em; }
-  .brand-name strong { font-size: .88rem; letter-spacing: .1em; }
+  .site-header .brand { gap: .35rem; }
+  .site-header .brand-emblem { width: 3.6rem; height: 2.7rem; }
+  .site-header .brand-name { font-size: .84rem; letter-spacing: .08em; }
+  .site-header .brand-subtitle { margin-top: .2rem; font-size: .52rem; letter-spacing: .08em; }
   .site-header nav { gap: 0; }
   .site-header nav a { min-width: auto; padding-inline: clamp(.22rem, 1.6vw, .38rem); font-size: clamp(.56rem, 2.45vw, .68rem); letter-spacing: .06em; white-space: nowrap; }
   .hero { grid-template-rows: minmax(26rem, 1fr) auto; min-height: max(45rem, calc(100svh - 5rem)); }
@@ -274,6 +275,16 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 @keyframes beam-shears-float-mobile { from { transform: translateY(0) scale(1); } to { transform: translateY(.45rem) scale(1.035); } }
 @keyframes shears-open-upper-mobile { 0%, 28%, 72%, 100% { transform: rotate(var(--shears-upper-base-angle)); } 44%, 56% { transform: rotate(calc(var(--shears-upper-base-angle) - 18deg)); } }
 @keyframes shears-open-lower-mobile { 0%, 28%, 72%, 100% { transform: rotate(var(--shears-lower-base-angle)); } 44%, 56% { transform: rotate(calc(var(--shears-lower-base-angle) + 18deg)); } }
+
+@media (max-width: 480px) {
+  .site-header { min-height: 7.25rem; flex-direction: column; padding-inline: .75rem; }
+  .site-header .brand { align-self: center; gap: .5rem; }
+  .site-header .brand-emblem { width: 4rem; height: 3rem; }
+  .site-header .brand-name { font-size: 1rem; letter-spacing: .09em; }
+  .site-header .brand-subtitle { margin-top: .22rem; font-size: .6875rem; letter-spacing: .1em; }
+  .site-header nav { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line-soft); }
+  .site-header nav a { min-width: 44px; min-height: 44px; padding-inline: .15rem; font-size: .6875rem; letter-spacing: .035em; white-space: nowrap; }
+}
 
 @media (max-width: 370px) {
   .hero { grid-template-rows: minmax(25rem, 1fr) auto; }

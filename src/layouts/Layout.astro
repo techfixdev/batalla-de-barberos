@@ -31,7 +31,10 @@ const path = Astro.url.pathname;
         <span class="brand-emblem" aria-hidden="true">
           <img src={logo.src} width={logo.width} height={logo.height} alt="" />
         </span>
-        <span class="brand-name"><strong>ENTRE</strong> CORTES</span>
+        <span class="brand-copy">
+          <span class="brand-name">ENTRECORTES</span>
+          <span class="brand-subtitle">batalla de barberos</span>
+        </span>
       </a>
       <nav aria-label="Navegación principal">
         <a href="/" aria-current={path === '/' ? 'page' : undefined}>Inicio</a>
