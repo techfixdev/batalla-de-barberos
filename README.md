@@ -53,9 +53,15 @@ The in-memory request limiter is a lightweight abuse control scoped to each serv
 
 ## Bases y categorías publicadas
 
-La versión vigente es `draft-2026-09-v2`: publica las cinco categorías y sus reglas completas desde una única fuente compartida por la web y el PDF. Conserva la marca `BORRADOR — PENDIENTE DE REVISIÓN LEGAL` y los pendientes generales; no asigna una categoría durante la inscripción.
+La versión vigente es `draft-2026-09-v3`: publica las cinco categorías y sus 66 reglas completas desde una única fuente compartida por la web y el PDF, ahora con la identidad visual Entre Cortes en negro, dorado y fondo claro de lectura. Conserva la marca `BORRADOR — PENDIENTE DE REVISIÓN LEGAL` y los pendientes generales; no asigna una categoría durante la inscripción.
 
-La versión histórica `draft-2026-09-v1` y su PDF permanecen disponibles con su URL y checksum originales. Nunca se reemplazan bytes de una versión publicada: cada actualización agrega una fuente, un PDF, una entrada de manifiesto y cabeceras inmutables nuevos.
+Las versiones históricas `draft-2026-09-v1` y `draft-2026-09-v2`, con sus PDF, permanecen disponibles con sus URL y checksums originales. Nunca se reemplazan bytes de una versión publicada: cada actualización agrega una fuente, un PDF, una entrada de manifiesto y cabeceras inmutables nuevos.
+
+El JPEG reproducible incrustado en v3 se derivó una sola vez del PNG original, sin metadatos ni dependencia de generación, con:
+
+```sh
+/usr/bin/magick src/assets/barber-battle/entre-cortes-logo-ai.png -resize 600x400! -strip -colorspace sRGB -sampling-factor 4:4:4 -interlace none -quality 90 content/draft-terms/branding/entre-cortes-emblem.jpg
+```
 
 ## Accessibility
 

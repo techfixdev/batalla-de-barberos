@@ -34,12 +34,12 @@ describe('public draft terms copy', () => {
     for (const { page, importPath } of surfaces) {
       expect(page).toContain(`import DraftTermsLink from '${importPath}';`);
       expect(page).toContain('<DraftTermsLink />');
-      expect(page).not.toMatch(/\/documentos\/bases-y-categorias\/borrador-2026-09-v[12]\.pdf/);
+      expect(page).not.toMatch(/\/documentos\/bases-y-categorias\/borrador-2026-09-v[123]\.pdf/);
     }
     expect(getCurrentDraftTerms()).toEqual(expect.objectContaining({
-      version: 'draft-2026-09-v2',
+      version: 'draft-2026-09-v3',
       legalMarker: marker,
-      publicPath: '/documentos/bases-y-categorias/borrador-2026-09-v2.pdf',
+      publicPath: '/documentos/bases-y-categorias/borrador-2026-09-v3.pdf',
     }));
   });
 
@@ -56,7 +56,7 @@ describe('public draft terms copy', () => {
     expect((participation.match(/<DraftTermsLink/g) ?? [])).toHaveLength(2);
     expect((privacy.match(/<DraftTermsLink/g) ?? [])).toHaveLength(2);
     for (const page of [signup, participation, privacy]) {
-      expect(page).not.toMatch(/borrador-2026-09-v[12]\.pdf/);
+      expect(page).not.toMatch(/borrador-2026-09-v[123]\.pdf/);
     }
   });
 

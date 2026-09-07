@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-const DEFAULT_SOURCE = 'content/draft-terms/draft-2026-09-v2.json';
-const DEFAULT_OUTPUT = 'public/documentos/bases-y-categorias/borrador-2026-09-v2.pdf';
+const DEFAULT_SOURCE = 'content/draft-terms/draft-2026-09-v3.json';
+const DEFAULT_OUTPUT = 'public/documentos/bases-y-categorias/borrador-2026-09-v3.pdf';
+const EMBLEM_PATH = new URL('../content/draft-terms/branding/entre-cortes-emblem.jpg', import.meta.url);
 const MARKER = 'BORRADOR — PENDIENTE DE REVISIÓN LEGAL';
 const decoder = new TextDecoder('windows-1252');
 
@@ -37,6 +39,102 @@ function pageStream(lines) {
 
 function object(id, body) { return `${id} 0 obj\n${body}\nendobj\n`; }
 
+function brandedText(value, x, y, size = 10, font = 'F1', color = '0.08 0.08 0.08') {
+  return `BT\n/${font} ${size} Tf\n${color} rg\n${x} ${y} Td\n(${pdfText(toWin1252(value))}) Tj\nET`;
+}
+
+function brandedBody(lines, startY) {
+  const wrapped = lines.flatMap((line) => wrapPdfLine(line, 84));
+  return `BT\n/F1 10 Tf\n0.08 0.08 0.08 rg\n50 ${startY} Td\n${wrapped.map((line, index) => `${index ? '0 -17 Td\n' : ''}(${pdfText(toWin1252(line))}) Tj`).join('\n')}\nET`;
+}
+
+function brandedPageStream({ page, total, title, lines, cover = false }) {
+  const header = [
+    '1 1 1 rg 0 0 612 792 re f',
+    '0.035 0.035 0.035 rg 0 712 612 80 re f',
+    'q 90 0 0 60 28 722 cm /Im1 Do Q',
+    brandedText('ENTRE CORTES', 132, 758, 15, 'F2', '0.91 0.70 0.24'),
+    brandedText('BATALLA DE BARBEROS', 132, 738, 12, 'F2', '1 1 1'),
+    brandedText(MARKER, 378, 746, 7.5, 'F2', '1 1 1'),
+    '0.82 0.61 0.16 rg 28 703 556 2 re f',
+  ];
+  const footer = [
+    '0.82 0.61 0.16 rg 28 43 556 1 re f',
+    brandedText('ENTRE CORTES · BATALLA DE BARBEROS', 28, 26, 7.5, 'F2', '0.32 0.27 0.18'),
+    brandedText(`BORRADOR LEGAL · ${page}/${total}`, 470, 26, 7.5, 'F2', '0.32 0.27 0.18'),
+  ];
+  if (cover) {
+    return [...header,
+      '0.035 0.035 0.035 rg 156 414 300 200 re f',
+      'q 270 0 0 180 171 424 cm /Im1 Do Q',
+      brandedText(title, 50, 374, 22, 'F2', '0.08 0.08 0.08'),
+      '0.82 0.61 0.16 rg 50 356 180 3 re f',
+      brandedBody(lines, 326),
+      ...footer].join('\n');
+  }
+  return [...header,
+    brandedText(title, 50, 672, 20, 'F2', '0.08 0.08 0.08'),
+    '0.82 0.61 0.16 rg 50 654 140 3 re f',
+    brandedBody(lines, 628),
+    ...footer].join('\n');
+}
+
+function createBrandedTermsPdf(source) {
+  if (source.legalMarker !== MARKER || source.categories?.length !== 5) {
+    throw new Error('Draft terms source does not match the branded v3 contract');
+  }
+  const pageDefinitions = [
+    {
+      title: 'BASES Y CATEGORÍAS',
+      cover: true,
+      lines: [
+        'Versión: draft-2026-09-v3',
+        source.intro,
+        '5 categorías · 66 reglas de competencia',
+        'Contenido general pendiente de revisión legal. La inscripción no asigna una categoría.',
+      ],
+    },
+    ...source.categories.map((category) => ({
+      title: `${category.number} — ${category.name}`,
+      lines: [`Duración: ${category.duration}`, ...category.rules],
+    })),
+    {
+      title: 'REQUISITOS COMPARTIDOS',
+      lines: ['Contenido pendiente de revisión legal.', ...source.sharedRequirements],
+    },
+  ];
+  const streams = pageDefinitions.map((definition, index) => brandedPageStream({
+    ...definition,
+    page: index + 1,
+    total: pageDefinitions.length,
+  }));
+  const emblem = readFileSync(EMBLEM_PATH);
+  const pageIds = pageDefinitions.map((_, index) => 6 + index * 2);
+  const infoId = pageIds.at(-1) + 2;
+  const objects = [
+    Buffer.from(object(1, '<< /Type /Catalog /Pages 2 0 R >>'), 'latin1'),
+    Buffer.from(object(2, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageDefinitions.length} >>`), 'latin1'),
+    Buffer.from(object(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'), 'latin1'),
+    Buffer.from(object(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'), 'latin1'),
+    Buffer.concat([
+      Buffer.from(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width 600 /Height 400 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${emblem.length} >>\nstream\n`, 'latin1'),
+      emblem,
+      Buffer.from('\nendstream\nendobj\n', 'latin1'),
+    ]),
+    ...streams.flatMap((stream, index) => [
+      Buffer.from(object(pageIds[index], `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im1 5 0 R >> >> /Contents ${pageIds[index] + 1} 0 R >>`), 'latin1'),
+      Buffer.from(object(pageIds[index] + 1, `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`), 'latin1'),
+    ]),
+    Buffer.from(object(infoId, '<< /Title (Bases y categorias - Entre Cortes) /Creator (offline deterministic generator) /CreationDate (D:20260901000000Z) /ModDate (D:20260901000000Z) >>'), 'latin1'),
+  ];
+  const header = Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1');
+  const offsets = [];
+  let cursor = header.length;
+  for (const item of objects) { offsets.push(cursor); cursor += item.length; }
+  const xref = Buffer.from(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${infoId} 0 R >>\nstartxref\n${cursor}\n%%EOF\n`, 'latin1');
+  return Buffer.concat([header, ...objects, xref]);
+}
+
 function pagesForSource(source) {
   if (source.version === 'draft-2026-09-v1' && source.legalMarker === MARKER && source.categories?.length === 4) {
     const categoryLines = source.categories.flatMap((category) => [category.name, category.eligibility, category.work, category.unresolved]);
@@ -58,6 +156,7 @@ function pagesForSource(source) {
 }
 
 export function createTermsPdf(source) {
+  if (source.version === 'draft-2026-09-v3') return createBrandedTermsPdf(source);
   const pages = pagesForSource(source);
   const streams = pages.map(pageStream);
   const pageIds = pages.map((_, index) => 4 + index * 2);
@@ -98,8 +197,31 @@ export async function generateTermsPdf({ root = process.cwd(), outputPath = reso
 }
 
 export function getPdfPageTexts(bytes) {
-  return [...bytes.toString('latin1').matchAll(/stream\n([\s\S]*?)\nendstream/g)].map(([, stream]) =>
-    [...stream.matchAll(/\((.*?)\) Tj/g)].map(([, encoded]) => decoder.decode(Buffer.from(encoded.replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(Number.parseInt(octal, 8))), 'latin1'))).join('\n'));
+  return [...bytes.toString('latin1').matchAll(/\d+ 0 obj\n(<<[^\n]+>>)\nstream\n([\s\S]*?)\nendstream\nendobj/g)]
+    .filter(([, dictionary]) => !dictionary.includes('/Subtype /Image'))
+    .map(([, , stream]) => [...stream.matchAll(/\((.*?)\) Tj/g)]
+      .map(([, encoded]) => decoder.decode(Buffer.from(encoded.replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(Number.parseInt(octal, 8))), 'latin1'))).join('\n'));
+}
+
+export function getPdfImages(bytes) {
+  const images = [];
+  const marker = Buffer.from('/Subtype /Image', 'latin1');
+  let markerAt = bytes.indexOf(marker);
+  while (markerAt !== -1) {
+    const dictionaryStart = bytes.lastIndexOf(Buffer.from('<<', 'latin1'), markerAt);
+    const streamStart = bytes.indexOf(Buffer.from('>>\nstream\n', 'latin1'), markerAt);
+    const dictionary = bytes.subarray(dictionaryStart, streamStart + 2).toString('latin1');
+    const length = Number(dictionary.match(/\/Length (\d+)/)?.[1]);
+    const dataStart = streamStart + Buffer.byteLength('>>\nstream\n', 'latin1');
+    images.push({
+      width: Number(dictionary.match(/\/Width (\d+)/)?.[1]),
+      height: Number(dictionary.match(/\/Height (\d+)/)?.[1]),
+      filter: dictionary.match(/\/Filter \/([^\s>]+)/)?.[1],
+      bytes: bytes.subarray(dataStart, dataStart + length),
+    });
+    markerAt = bytes.indexOf(marker, dataStart + length);
+  }
+  return images;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {

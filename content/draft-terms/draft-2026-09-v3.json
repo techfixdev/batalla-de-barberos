@@ -1,0 +1,121 @@
+{
+  "version": "draft-2026-09-v3",
+  "title": "Bases y categorías — Entre Cortes · Batalla de Barberos",
+  "legalMarker": "BORRADOR — PENDIENTE DE REVISIÓN LEGAL",
+  "intro": "Este borrador incorpora las categorías y reglas de competencia aprobadas por la organización y conserva las condiciones generales pendientes de revisión legal.",
+  "categories": [
+    {
+      "number": "01",
+      "name": "Fade Profesional",
+      "duration": "45 minutos",
+      "datetime": "PT45M",
+      "rules": [
+        "Tiempo de competencia: 45 minutos",
+        "Modelo Fade",
+        "Base mínima: alza N.° 2",
+        "No se permite pigmento",
+        "El cabello no puede estar cortado previamente",
+        "El peinado no puede estar realizado previamente",
+        "No se permiten líneas",
+        "Si el modelo fue cortado o peinado previamente, puede haber pérdida de puntos",
+        "El competidor puede ser descalificado por trabajo previo",
+        "Limpieza del fade",
+        "Limpieza del peinado",
+        "Prolijidad durante el trabajo",
+        "Impacto visual",
+        "Armonía general del corte"
+      ]
+    },
+    {
+      "number": "02",
+      "name": "Fast Fade",
+      "duration": "15 minutos",
+      "datetime": "PT15M",
+      "rules": [
+        "Tiempo de competencia: 15 minutos",
+        "Modelo Fade",
+        "Base mínima: alza N.° 2",
+        "No se permite pigmento",
+        "El cabello no puede estar cortado previamente",
+        "El peinado no puede estar realizado previamente",
+        "No se permiten líneas",
+        "Si el modelo fue cortado o peinado previamente, puede haber pérdida de puntos",
+        "El competidor puede ser descalificado por trabajo previo",
+        "Limpieza del fade",
+        "Limpieza del peinado",
+        "Prolijidad durante el trabajo",
+        "Impacto visual",
+        "Armonía general del corte",
+        "Rapidez en la ejecución"
+      ]
+    },
+    {
+      "number": "03",
+      "name": "Lady Barbers",
+      "duration": "45 minutos",
+      "datetime": "PT45M",
+      "rules": [
+        "Tiempo de competencia: 45 minutos",
+        "Modelo Fade",
+        "Base mínima: alza N.° 2",
+        "No se permite pigmento",
+        "El cabello no puede estar cortado previamente",
+        "El peinado no puede estar realizado previamente",
+        "No se permiten líneas",
+        "Si el modelo fue cortado o peinado previamente, puede haber pérdida de puntos",
+        "El competidor puede ser descalificado por trabajo previo",
+        "Limpieza del fade",
+        "Limpieza del peinado",
+        "Prolijidad durante el trabajo",
+        "Impacto visual",
+        "Armonía general del corte"
+      ]
+    },
+    {
+      "number": "04",
+      "name": "Freestyle",
+      "duration": "45 minutos",
+      "datetime": "PT45M",
+      "rules": [
+        "Tiempo de competencia: 45 minutos",
+        "Diseño freestyle",
+        "El diseño comienza a partir de 2 o 3 líneas realizadas por el jurado",
+        "El competidor desarrolla el diseño a partir de esas líneas",
+        "Pigmento permitido",
+        "Creatividad del diseño",
+        "Armonía del diseño",
+        "Impacto visual",
+        "Líneas limpias",
+        "Trabajo de luces y sombras",
+        "Desarrollo del diseño",
+        "Correcto uso del pigmento"
+      ]
+    },
+    {
+      "number": "05",
+      "name": "Total Look",
+      "duration": "1 hora",
+      "datetime": "PT1H",
+      "rules": [
+        "Tiempo de competencia: 1 hora",
+        "Creación de un Look Total",
+        "Personaje libre",
+        "Coherencia del corte con el personaje",
+        "Accesorios",
+        "Maquillaje",
+        "Vestimenta completa",
+        "Peinado",
+        "Ejecución del corte",
+        "Integración general del personaje",
+        "Impacto visual final"
+      ]
+    }
+  ],
+  "sharedRequirements": [
+    "Competidores y modelos adultos; consentimiento del modelo [A DEFINIR CON REVISIÓN LEGAL].",
+    "Sanidad, herramientas, protección de piel y conducta respetuosa son obligatorias; detalles por categoría [A DEFINIR].",
+    "Acreditación, llegadas tarde, sustitución, abandono, empates, protestas y apelaciones: [A DEFINIR].",
+    "Cronograma, sede, organizador, jurado, cupos, selección, premios, imagen, cancelación, privacidad, retención y contacto: [A DEFINIR].",
+    "La experiencia indicada en la inscripción no es una categoría de competencia; no implica postulación, asignación ni reasignación de categoría."
+  ]
+}
