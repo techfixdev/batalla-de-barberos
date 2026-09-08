@@ -35,10 +35,8 @@ test('shows five uncropped sponsor logos before signup and navigates with contro
     return Boolean(rules.compareDocumentPosition(sponsorsSection) & Node.DOCUMENT_POSITION_FOLLOWING)
       && Boolean(sponsorsSection.compareDocumentPosition(signup) & Node.DOCUMENT_POSITION_FOLLOWING);
   })).toBe(true);
-  await expect(sponsors.locator('img')).toHaveCount(5);
-  for (const image of await sponsors.locator('img').all()) {
-    await expect(image).toHaveCSS('object-fit', 'contain');
-  }
+  const sponsorImages = sponsors.locator('img');
+  await expect(sponsorImages).toHaveCount(5);
 
   await expect(previous).toBeDisabled();
   const initialLeft = await track.evaluate((element) => element.scrollLeft);
@@ -53,6 +51,22 @@ test('shows five uncropped sponsor logos before signup and navigates with contro
   await page.keyboard.press('Home');
   await expect.poll(() => track.evaluate((element) => element.scrollLeft)).toBeLessThanOrEqual(5);
   await expect(previous).toBeDisabled();
+
+  for (let index = 0; index < 5; index += 1) {
+    const image = sponsorImages.nth(index);
+    await image.scrollIntoViewIfNeeded();
+    const dimensions = await image.evaluate(async (element) => {
+      const imageElement = element as HTMLImageElement;
+      await imageElement.decode();
+      return {
+        naturalWidth: imageElement.naturalWidth,
+        naturalHeight: imageElement.naturalHeight,
+      };
+    });
+    expect(dimensions.naturalWidth).toBeGreaterThan(0);
+    expect(dimensions.naturalHeight).toBeGreaterThan(0);
+    await expect(image).toHaveCSS('object-fit', 'contain');
+  }
 });
 
 test.describe('mobile sponsor carousel', () => {

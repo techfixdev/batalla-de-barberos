@@ -16,13 +16,13 @@ describe('public sponsors carousel', () => {
     expect(page).toMatch(/<BarberRules \/>\s*<SponsorsCarousel \/>\s*<section id="inscripcion"/);
   });
 
-  it('renders all five visually verified sponsors with optimized Astro images', async () => {
+  it('renders all five visually verified sponsors as direct static images', async () => {
     const [component, css] = await Promise.all([
       source('src/components/SponsorsCarousel.astro'),
       source('src/styles/global.css'),
     ]);
 
-    expect(component).toContain("import { Image } from 'astro:assets';");
+    expect(component).not.toContain("from 'astro:assets'");
     for (const name of [
       'TBH Estudio',
       'Harakiri Barber Studio',
@@ -32,7 +32,14 @@ describe('public sponsors carousel', () => {
     ]) {
       expect(component).toContain(`name: '${name}'`);
     }
-    expect(component.match(/<Image\b/g)).toHaveLength(1);
+    expect(component).toContain('<img');
+    expect(component).toContain('src={sponsor.logo.src}');
+    expect(component).toContain('width={sponsor.logo.width}');
+    expect(component).toContain('height={sponsor.logo.height}');
+    expect(component).toContain('alt={`Logo de ${sponsor.name}`}');
+    expect(component).toContain('loading="lazy"');
+    expect(component).toContain('decoding="async"');
+    expect(component).not.toMatch(/\bwidths=|\bsizes=/);
     expect(css).toMatch(/\.sponsor-logo img\s*\{[^}]*object-fit:\s*contain/);
   });
 

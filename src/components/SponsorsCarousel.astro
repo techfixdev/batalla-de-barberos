@@ -1,5 +1,4 @@
 ---
-import { Image } from 'astro:assets';
 import tbhEstudio from '../assets/barber-battle/sponsors/tbh-estudio.jpeg';
 import harakiri from '../assets/barber-battle/sponsors/harakiri-barber-studio.jpeg';
 import jrEstudio from '../assets/barber-battle/sponsors/jr-estudio-203.jpeg';
@@ -36,11 +35,11 @@ const sponsors = [
       <li class="sponsor-card" data-sponsor-card>
         <figure>
           <div class="sponsor-logo">
-            <Image
-              src={sponsor.logo}
+            <img
+              src={sponsor.logo.src}
+              width={sponsor.logo.width}
+              height={sponsor.logo.height}
               alt={`Logo de ${sponsor.name}`}
-              widths={[320, 480, 640]}
-              sizes="(max-width: 650px) 76vw, (max-width: 1000px) 42vw, 28vw"
               loading="lazy"
               decoding="async"
             />
