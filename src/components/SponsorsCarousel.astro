@@ -1,0 +1,119 @@
+---
+import { Image } from 'astro:assets';
+import tbhEstudio from '../assets/barber-battle/sponsors/tbh-estudio.jpeg';
+import harakiri from '../assets/barber-battle/sponsors/harakiri-barber-studio.jpeg';
+import jrEstudio from '../assets/barber-battle/sponsors/jr-estudio-203.jpeg';
+import entreCortesStream from '../assets/barber-battle/sponsors/entre-cortes-stream.jpeg';
+import giovato from '../assets/barber-battle/sponsors/giovato-estudio.jpeg';
+
+const sponsors = [
+  { name: 'TBH Estudio', logo: tbhEstudio },
+  { name: 'Harakiri Barber Studio', logo: harakiri },
+  { name: 'Jr Estudio 203', logo: jrEstudio },
+  { name: 'Entre Cortes Stream', logo: entreCortesStream },
+  { name: 'Giovato Estudio', logo: giovato },
+];
+---
+
+<section class="sponsors" role="region" aria-label="Sponsors del evento" data-sponsors-carousel>
+  <header class="sponsors-heading">
+    <div>
+      <p class="eyebrow">Nos acompañan</p>
+      <h2 id="sponsors-title">Sponsors que hacen posible el encuentro.</h2>
+    </div>
+    <div class="sponsors-controls" aria-label="Controles del carrusel">
+      <button type="button" aria-label="Sponsor anterior" data-sponsors-previous disabled>
+        <span aria-hidden="true">←</span>
+      </button>
+      <button type="button" aria-label="Sponsor siguiente" data-sponsors-next>
+        <span aria-hidden="true">→</span>
+      </button>
+    </div>
+  </header>
+
+  <ul class="sponsors-track" role="group" aria-label="Logos de sponsors" tabindex="0" data-sponsors-track>
+    {sponsors.map((sponsor) => (
+      <li class="sponsor-card" data-sponsor-card>
+        <figure>
+          <div class="sponsor-logo">
+            <Image
+              src={sponsor.logo}
+              alt={`Logo de ${sponsor.name}`}
+              widths={[320, 480, 640]}
+              sizes="(max-width: 650px) 76vw, (max-width: 1000px) 42vw, 28vw"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>{sponsor.name}</figcaption>
+        </figure>
+      </li>
+    ))}
+  </ul>
+  <p class="sr-only" aria-live="polite" aria-atomic="true" data-sponsors-status>Sponsor 1 de {sponsors.length}: TBH Estudio</p>
+</section>
+
+<script>
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  document.querySelectorAll<HTMLElement>('[data-sponsors-carousel]').forEach((carousel) => {
+    const track = carousel.querySelector<HTMLElement>('[data-sponsors-track]');
+    const cards = Array.from(carousel.querySelectorAll<HTMLElement>('[data-sponsor-card]'));
+    const previous = carousel.querySelector<HTMLButtonElement>('[data-sponsors-previous]');
+    const next = carousel.querySelector<HTMLButtonElement>('[data-sponsors-next]');
+    const status = carousel.querySelector<HTMLElement>('[data-sponsors-status]');
+    if (!track || !cards.length || !previous || !next || !status) return;
+
+    const firstCard = cards[0]!;
+    const cardLeft = (card: HTMLElement) => card.offsetLeft - firstCard.offsetLeft;
+    const nearestIndex = () => cards.reduce((nearest, card, index) => (
+      Math.abs(cardLeft(card) - track.scrollLeft) < Math.abs(cardLeft(cards[nearest]!) - track.scrollLeft) ? index : nearest
+    ), 0);
+    const update = () => {
+      const index = nearestIndex();
+      const edgeTolerance = Math.max(2, track.clientWidth * .01);
+      previous.disabled = track.scrollLeft <= edgeTolerance;
+      next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - edgeTolerance;
+      status.textContent = `Sponsor ${index + 1} de ${cards.length}: ${cards[index]!.querySelector('figcaption')?.textContent ?? ''}`;
+    };
+    const goTo = (index: number) => {
+      const target = cards[Math.max(0, Math.min(cards.length - 1, index))]!;
+      track.scrollTo({ left: cardLeft(target), behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    };
+
+    previous.addEventListener('click', () => goTo(nearestIndex() - 1));
+    next.addEventListener('click', () => goTo(nearestIndex() + 1));
+    track.addEventListener('keydown', (event) => {
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          goTo(nearestIndex() - 1);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          goTo(nearestIndex() + 1);
+          break;
+        case 'Home':
+          event.preventDefault();
+          goTo(0);
+          break;
+        case 'End':
+          event.preventDefault();
+          goTo(cards.length - 1);
+          break;
+      }
+    });
+
+    let scheduled = false;
+    track.addEventListener('scroll', () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        update();
+        scheduled = false;
+      });
+    }, { passive: true });
+    window.addEventListener('resize', update, { passive: true });
+    update();
+  });
+</script>
