@@ -24,6 +24,9 @@ const sponsors = [
       <button type="button" aria-label="Sponsor anterior" data-sponsors-previous disabled>
         <span aria-hidden="true">←</span>
       </button>
+      <button type="button" aria-label="Pausar reproducción automática" aria-pressed="false" data-sponsors-autoplay>
+        <span aria-hidden="true" data-sponsors-autoplay-icon>Ⅱ</span>
+      </button>
       <button type="button" aria-label="Sponsor siguiente" data-sponsors-next>
         <span aria-hidden="true">→</span>
       </button>
@@ -54,14 +57,17 @@ const sponsors = [
 
 <script>
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const autoplayDelay = 3000;
 
   document.querySelectorAll<HTMLElement>('[data-sponsors-carousel]').forEach((carousel) => {
     const track = carousel.querySelector<HTMLElement>('[data-sponsors-track]');
     const cards = Array.from(carousel.querySelectorAll<HTMLElement>('[data-sponsor-card]'));
     const previous = carousel.querySelector<HTMLButtonElement>('[data-sponsors-previous]');
     const next = carousel.querySelector<HTMLButtonElement>('[data-sponsors-next]');
+    const autoplay = carousel.querySelector<HTMLButtonElement>('[data-sponsors-autoplay]');
+    const autoplayIcon = carousel.querySelector<HTMLElement>('[data-sponsors-autoplay-icon]');
     const status = carousel.querySelector<HTMLElement>('[data-sponsors-status]');
-    if (!track || !cards.length || !previous || !next || !status) return;
+    if (!track || !cards.length || !previous || !next || !autoplay || !autoplayIcon || !status) return;
 
     const firstCard = cards[0]!;
     const cardLeft = (card: HTMLElement) => card.offsetLeft - firstCard.offsetLeft;
@@ -80,28 +86,88 @@ const sponsors = [
       track.scrollTo({ left: cardLeft(target), behavior: reducedMotion.matches ? 'auto' : 'smooth' });
     };
 
-    previous.addEventListener('click', () => goTo(nearestIndex() - 1));
-    next.addEventListener('click', () => goTo(nearestIndex() + 1));
+    let userPaused = false;
+    let pointerPaused = false;
+    let focusPaused = false;
+    let autoplayTimer: number | undefined;
+    const canAutoplay = () => !reducedMotion.matches && !userPaused && !pointerPaused && !focusPaused && !document.hidden;
+    const updateAutoplayControl = () => {
+      if (reducedMotion.matches) {
+        autoplay.disabled = true;
+        autoplay.ariaLabel = 'Reproducción automática desactivada por movimiento reducido';
+        autoplay.ariaPressed = 'true';
+        autoplayIcon.textContent = '▶';
+        return;
+      }
+      autoplay.disabled = false;
+      autoplay.ariaLabel = userPaused ? 'Reanudar reproducción automática' : 'Pausar reproducción automática';
+      autoplay.ariaPressed = String(userPaused);
+      autoplayIcon.textContent = userPaused ? '▶' : 'Ⅱ';
+    };
+    const stopAutoplay = () => {
+      if (autoplayTimer !== undefined) window.clearInterval(autoplayTimer);
+      autoplayTimer = undefined;
+    };
+    const syncAutoplay = () => {
+      stopAutoplay();
+      updateAutoplayControl();
+      if (!canAutoplay()) return;
+      autoplayTimer = window.setInterval(() => {
+        const atEnd = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+        goTo(atEnd ? 0 : nearestIndex() + 1);
+      }, autoplayDelay);
+    };
+    const navigate = (index: number) => {
+      goTo(index);
+      syncAutoplay();
+    };
+
+    previous.addEventListener('click', () => navigate(nearestIndex() - 1));
+    next.addEventListener('click', () => navigate(nearestIndex() + 1));
+    autoplay.addEventListener('click', () => {
+      userPaused = !userPaused;
+      syncAutoplay();
+    });
     track.addEventListener('keydown', (event) => {
       switch (event.key) {
         case 'ArrowLeft':
           event.preventDefault();
-          goTo(nearestIndex() - 1);
+          navigate(nearestIndex() - 1);
           break;
         case 'ArrowRight':
           event.preventDefault();
-          goTo(nearestIndex() + 1);
+          navigate(nearestIndex() + 1);
           break;
         case 'Home':
           event.preventDefault();
-          goTo(0);
+          navigate(0);
           break;
         case 'End':
           event.preventDefault();
-          goTo(cards.length - 1);
+          navigate(cards.length - 1);
           break;
       }
     });
+
+    carousel.addEventListener('mouseenter', () => {
+      pointerPaused = true;
+      syncAutoplay();
+    });
+    carousel.addEventListener('mouseleave', () => {
+      pointerPaused = false;
+      syncAutoplay();
+    });
+    carousel.addEventListener('focusin', () => {
+      focusPaused = true;
+      syncAutoplay();
+    });
+    carousel.addEventListener('focusout', (event) => {
+      if (carousel.contains(event.relatedTarget as Node | null)) return;
+      focusPaused = false;
+      syncAutoplay();
+    });
+    document.addEventListener('visibilitychange', syncAutoplay);
+    reducedMotion.addEventListener('change', syncAutoplay);
 
     let scheduled = false;
     track.addEventListener('scroll', () => {
@@ -114,5 +180,6 @@ const sponsors = [
     }, { passive: true });
     window.addEventListener('resize', update, { passive: true });
     update();
+    syncAutoplay();
   });
 </script>

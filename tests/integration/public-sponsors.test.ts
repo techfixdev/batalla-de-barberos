@@ -43,20 +43,25 @@ describe('public sponsors carousel', () => {
     expect(css).toMatch(/\.sponsor-logo img\s*\{[^}]*object-fit:\s*contain/);
   });
 
-  it('provides labelled scroll controls, keyboard navigation, and reduced-motion behavior', async () => {
+  it('provides labelled controls, automatic playback, keyboard navigation, and motion safeguards', async () => {
     const component = await source('src/components/SponsorsCarousel.astro');
     const css = await source('src/styles/global.css');
 
     expect(component).toContain('aria-label="Sponsors del evento"');
     expect(component).toContain('aria-label="Sponsor anterior"');
     expect(component).toContain('aria-label="Sponsor siguiente"');
+    expect(component).toContain('aria-label="Pausar reproducción automática"');
+    expect(component).toContain('data-sponsors-autoplay');
+    expect(component).toContain('const autoplayDelay = 3000;');
     expect(component).toContain("case 'ArrowLeft':");
     expect(component).toContain("case 'ArrowRight':");
     expect(component).toContain("case 'Home':");
     expect(component).toContain("case 'End':");
+    expect(component).toContain("document.addEventListener('visibilitychange'");
     expect(component).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
     expect(css).toMatch(/\.sponsors-track\s*\{[^}]*overflow-x:\s*auto[^}]*scroll-snap-type:\s*x mandatory/);
-    expect(css).toMatch(/\.sponsor-card\s*\{[^}]*scroll-snap-align:\s*start/);
+    expect(css).toMatch(/\.sponsor-card\s*\{[^}]*flex:\s*0 0 17rem[^}]*scroll-snap-align:\s*start/);
+    expect(css).toMatch(/\.sponsor-logo\s*\{[^}]*height:\s*10\.625rem/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[^]*\.sponsors-track\s*\{[^}]*scroll-behavior:\s*auto/);
   });
 });

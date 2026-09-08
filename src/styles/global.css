@@ -159,15 +159,15 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 .sponsors-controls button:hover:not(:disabled) { color: var(--ink); background: var(--gold-bright); transform: translateY(-2px); }
 .sponsors-controls button:disabled { color: var(--line); border-color: var(--line); cursor: not-allowed; }
 .sponsors-track { display: flex; overflow-x: auto; gap: clamp(1rem, 2vw, 1.5rem); margin: 0; padding: .25rem .25rem 1.25rem; scroll-behavior: smooth; scroll-snap-type: x mandatory; scrollbar-color: var(--gold) var(--line-soft); scrollbar-width: thin; list-style: none; overscroll-behavior-inline: contain; touch-action: pan-x pan-y; }
-.sponsor-card { min-width: min(28rem, calc((100% - 3rem) / 3)); flex: 0 0 min(28rem, calc((100% - 3rem) / 3)); background: var(--ink-soft); border: 1px solid #5f5338; scroll-snap-align: start; scroll-snap-stop: always; }
+.sponsor-card { flex: 0 0 17rem; background: var(--ink-soft); border: 1px solid #5f5338; scroll-snap-align: start; scroll-snap-stop: always; }
 .sponsor-card figure { display: grid; height: 100%; grid-template-rows: auto 1fr; margin: 0; }
-.sponsor-logo { display: grid; aspect-ratio: 4 / 3; place-items: center; padding: clamp(1rem, 2vw, 1.75rem); background: #050606; border-bottom: 1px solid var(--line-soft); }
+.sponsor-logo { display: grid; height: 10.625rem; place-items: center; padding: 1rem; background: #050606; border-bottom: 1px solid var(--line-soft); }
 .sponsor-logo picture { display: contents; }
 .sponsor-logo img { width: 100%; height: 100%; object-fit: contain; }
-.sponsor-card figcaption { align-self: center; padding: 1.1rem 1.25rem; color: var(--ivory); font-size: .88rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.sponsor-card figcaption { align-self: center; min-height: 3.75rem; padding: .9rem 1rem; color: var(--ivory); font-size: .8rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 
 @media (max-width: 1000px) {
-  .sponsor-card { min-width: calc((100% - 1.5rem) / 2); flex-basis: calc((100% - 1.5rem) / 2); }
+  .sponsor-card { flex-basis: 31%; }
 }
 
 @media (max-width: 650px) {
@@ -176,7 +176,9 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
   .sponsors-heading h2 { font-size: clamp(3rem, 14vw, 4.5rem); }
   .sponsors-controls { justify-self: end; }
   .sponsors-controls button { width: 44px; height: 44px; }
-  .sponsor-card { min-width: 82%; flex-basis: 82%; }
+  .sponsor-card { flex-basis: 46%; }
+  .sponsor-logo { height: 7.5rem; padding: .75rem; }
+  .sponsor-card figcaption { min-height: 3.5rem; padding: .75rem; font-size: .72rem; }
 }
 
 .signup-section { display: grid; grid-template-columns: .26fr 1fr; background: var(--ivory); }
