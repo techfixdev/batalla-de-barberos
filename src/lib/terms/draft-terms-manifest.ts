@@ -1,4 +1,4 @@
-export const CURRENT_DRAFT_TERMS_VERSION = 'draft-2026-09-v3' as const;
+export const CURRENT_DRAFT_TERMS_VERSION = 'terms-2026-09-v1' as const;
 
 export const DRAFT_TERMS = {
   'draft-2026-09-v1': {
@@ -27,6 +27,15 @@ export const DRAFT_TERMS = {
     mimeType: 'application/pdf',
     legalMarker: 'BORRADOR — PENDIENTE DE REVISIÓN LEGAL',
     sha256: '23f380e1313da25e1385f9ec48ff2bcda58a7d9c35045538ecabae0a0f88ce8a',
+  },
+  'terms-2026-09-v1': {
+    version: 'terms-2026-09-v1',
+    sourcePath: 'content/draft-terms/terms-2026-09-v1.json',
+    publicPath: '/documentos/bases-y-categorias/bases-2026-09-v1.pdf',
+    filename: 'bases-y-categorias-batalla-de-barberos-2026-09-v1.pdf',
+    mimeType: 'application/pdf',
+    legalMarker: '',
+    sha256: '1882ac441d84a8f409e8d5e7aca3628039bbf2c7b6bad5bf4baed3128a9fcda7',
   },
 } as const;
 

@@ -1,6 +1,7 @@
 ---
 import DraftTermsLink from './DraftTermsLink.astro';
 import GoldShears from './GoldShears.astro';
+import TermsAcceptanceModal from './TermsAcceptanceModal.astro';
 import { EXPERIENCE_OPTIONS } from '../lib/barber-signups';
 
 const experienceLabels = {
@@ -51,19 +52,12 @@ const experienceLabels = {
       </select>
       <span class="field-error" id="experience-error"></span>
     </div>
-
-    <div class="field field-wide consent">
-      <input id="acceptedRules" name="acceptedRules" type="checkbox" required aria-describedby="acceptedRules-error" />
-      <label for="acceptedRules">
-        Leí el <a href="/participacion">aviso de participación</a> y la <a href="/privacidad">política de privacidad</a>. También consulté las <DraftTermsLink />; esta casilla solo registra esa lectura, no acepta reglas finales y no constituye consentimiento legal.
-      </label>
-      <span class="field-error" id="acceptedRules-error"></span>
-    </div>
   </div>
 
   <button class="button button-primary" type="submit">Enviar inscripción <span aria-hidden="true">↗</span></button>
   <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
-  <p>Las <DraftTermsLink /> son información no final y no determinan una selección ni una respuesta de participación.</p>
+  <p>Antes del envío vas a poder recorrer las bases completas. Las <DraftTermsLink /> no determinan una selección ni una respuesta de participación.</p>
+  <TermsAcceptanceModal />
 </form>
 
 <script>
@@ -71,8 +65,17 @@ const experienceLabels = {
 
   const form = requireElementById<HTMLFormElement>('signup-form');
   const status = requireElementById<HTMLParagraphElement>('form-status');
+  const trigger = form.querySelector<HTMLButtonElement>(':scope > button[type="submit"]')!;
+  const dialog = requireElementById<HTMLDialogElement>('terms-acceptance-dialog');
+  const termsBody = requireElementById<HTMLElement>('terms-dialog-body');
+  const readStatus = requireElementById<HTMLElement>('terms-read-status');
+  const acceptedRules = requireElementById<HTMLInputElement>('acceptedRules');
+  const cancelButton = requireElementById<HTMLButtonElement>('terms-cancel');
+  const confirmButton = requireElementById<HTMLButtonElement>('terms-confirm');
   const fieldNames = ['fullName', 'email', 'phone', 'barbershop', 'experience', 'acceptedRules'] as const;
   let submissionKey = crypto.randomUUID();
+  let inFlight = false;
+  let focusAfterClose: HTMLElement | null = null;
 
   function control(name: typeof fieldNames[number]): HTMLInputElement | HTMLSelectElement {
     const item = form.elements.namedItem(name);
@@ -87,21 +90,47 @@ const experienceLabels = {
     }
   }
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    clearErrors();
-    status.textContent = '';
+  function evaluateReadingGate() {
+    if (!dialog.open) return;
+    const reachedBottom = termsBody.scrollHeight - termsBody.scrollTop - termsBody.clientHeight <= 2;
+    if (!reachedBottom) acceptedRules.checked = false;
+    acceptedRules.disabled = inFlight || !reachedBottom;
+    confirmButton.disabled = inFlight || !reachedBottom || !acceptedRules.checked;
+    readStatus.textContent = reachedBottom
+      ? 'Llegaste al final de las bases.'
+      : 'Recorré las bases hasta el final para habilitar la confirmación.';
+  }
 
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      status.textContent = 'Revisá los campos obligatorios.';
-      return;
-    }
+  function resetReadingGate() {
+    termsBody.scrollTop = 0;
+    acceptedRules.checked = false;
+    acceptedRules.disabled = true;
+    confirmButton.disabled = true;
+    readStatus.textContent = 'Recorré las bases hasta el final para habilitar la confirmación.';
+  }
 
-    const button = form.getElementsByTagName('button')[0];
-    if (!button) return;
-    button.disabled = true;
-    button.textContent = 'Enviando…';
+  function closeDialog(nextFocus: HTMLElement | null = trigger) {
+    focusAfterClose = nextFocus;
+    if (dialog.open) dialog.close();
+  }
+
+  function openDialog() {
+    resetReadingGate();
+    dialog.showModal();
+    requestAnimationFrame(() => {
+      termsBody.scrollTop = 0;
+      evaluateReadingGate();
+    });
+  }
+
+  async function submitSignup() {
+    const reachedBottom = termsBody.scrollHeight - termsBody.scrollTop - termsBody.clientHeight <= 2;
+    if (inFlight || acceptedRules.disabled || !acceptedRules.checked || !reachedBottom) return;
+    inFlight = true;
+    acceptedRules.disabled = true;
+    cancelButton.disabled = true;
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Enviando…';
 
     const payload = {
       fullName: control('fullName').value,
@@ -109,7 +138,7 @@ const experienceLabels = {
       phone: control('phone').value,
       barbershop: control('barbershop').value,
       experience: control('experience').value,
-      acceptedRules: (control('acceptedRules') as HTMLInputElement).checked,
+      acceptedRules: true,
     };
 
     try {
@@ -121,8 +150,8 @@ const experienceLabels = {
       const result = await response.json() as { message?: string; errors?: Record<string, string> };
 
       if (!response.ok) {
+        let firstInvalid: HTMLElement | null = null;
         if (result.errors) {
-          let firstInvalid: HTMLElement | undefined;
           for (const [name, message] of Object.entries(result.errors)) {
             if (!fieldNames.includes(name as typeof fieldNames[number])) continue;
             const input = control(name as typeof fieldNames[number]);
@@ -130,20 +159,48 @@ const experienceLabels = {
             requireElementById<HTMLElement>(`${name}-error`).textContent = message;
             firstInvalid ??= input;
           }
-          firstInvalid?.focus();
         }
         status.textContent = result.message ?? 'No pudimos enviar la inscripción.';
+        closeDialog(firstInvalid ?? trigger);
         return;
       }
 
       submissionKey = crypto.randomUUID();
       form.reset();
       status.textContent = 'Guardamos tu inscripción. Intentaremos enviarte un acuse por WhatsApp con el PDF adjunto; si no lo recibís, no invalida la inscripción guardada. La selección la decide más adelante la organización y la respuesta posterior de la persona participante se registra por separado. El acuse no constituye consentimiento legal ni confirma selección o participación.';
+      closeDialog();
     } catch {
       status.textContent = 'No hay conexión. Revisá tu red e intentá nuevamente.';
+      closeDialog();
     } finally {
-      button.disabled = false;
-      button.textContent = 'Enviar inscripción ↗';
+      inFlight = false;
+      cancelButton.disabled = false;
+      confirmButton.textContent = 'Aceptar y enviar';
     }
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    clearErrors();
+    status.textContent = '';
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      status.textContent = 'Revisá los campos obligatorios.';
+      return;
+    }
+    openDialog();
+  });
+  termsBody.addEventListener('scroll', evaluateReadingGate);
+  window.addEventListener('resize', evaluateReadingGate);
+  acceptedRules.addEventListener('change', () => {
+    confirmButton.disabled = inFlight || acceptedRules.disabled || !acceptedRules.checked;
+  });
+  cancelButton.addEventListener('click', () => { if (!inFlight) closeDialog(); });
+  confirmButton.addEventListener('click', submitSignup);
+  dialog.addEventListener('cancel', (event) => { if (inFlight) event.preventDefault(); });
+  dialog.addEventListener('close', () => {
+    resetReadingGate();
+    (focusAfterClose ?? trigger).focus();
+    focusAfterClose = null;
   });
 </script>

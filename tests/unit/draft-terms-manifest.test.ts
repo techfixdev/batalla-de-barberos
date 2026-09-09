@@ -14,18 +14,18 @@ import { wrapPdfLine } from '../../scripts/generate-terms-pdf.mjs';
 const root = process.cwd();
 
 describe('draft terms manifest', () => {
-  it('pins the current immutable draft and preserves the exact historical version', async () => {
+  it('pins the current immutable terms and preserves every historical draft identity', async () => {
     const terms = getCurrentDraftTerms();
 
-    expect(CURRENT_DRAFT_TERMS_VERSION).toBe('draft-2026-09-v3');
-    expect(Object.keys(DRAFT_TERMS)).toEqual(['draft-2026-09-v1', 'draft-2026-09-v2', 'draft-2026-09-v3']);
+    expect(CURRENT_DRAFT_TERMS_VERSION).toBe('terms-2026-09-v1');
+    expect(Object.keys(DRAFT_TERMS)).toEqual(['draft-2026-09-v1', 'draft-2026-09-v2', 'draft-2026-09-v3', 'terms-2026-09-v1']);
     expect(terms).toEqual(expect.objectContaining({
-      version: 'draft-2026-09-v3',
-      sourcePath: 'content/draft-terms/draft-2026-09-v3.json',
-      publicPath: '/documentos/bases-y-categorias/borrador-2026-09-v3.pdf',
-      filename: 'bases-y-categorias-batalla-de-barberos-borrador-2026-09-v3.pdf',
+      version: 'terms-2026-09-v1',
+      sourcePath: 'content/draft-terms/terms-2026-09-v1.json',
+      publicPath: '/documentos/bases-y-categorias/bases-2026-09-v1.pdf',
+      filename: 'bases-y-categorias-batalla-de-barberos-2026-09-v1.pdf',
       mimeType: 'application/pdf',
-      legalMarker: 'BORRADOR — PENDIENTE DE REVISIÓN LEGAL',
+      legalMarker: '',
     }));
 
     const oldTerms = getDraftTermsByVersion('draft-2026-09-v1');

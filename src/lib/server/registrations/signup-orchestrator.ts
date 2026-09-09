@@ -4,9 +4,10 @@ import type { Client } from '@libsql/client';
 
 import type { SignupInput } from '../../barber-signups';
 import { getCurrentDraftTerms } from '../../terms/draft-terms-manifest';
+import { createReceiptCaption } from '../notifications/receipt-caption';
 import { createRegistrationNotificationRepository, type RegistrationNotificationRepository } from '../notifications/registration-receipts';
 
-const NOTICE_VERSION = 'public-copy-2026-09-v1';
+const NOTICE_VERSION = 'public-copy-2026-09-v2';
 type Existing = { id: string; submission_fingerprint: string | null };
 export type SignupOutcome = 'created' | 'replay' | 'idempotency_conflict' | 'duplicate_email';
 
@@ -45,7 +46,9 @@ export function createSignupOrchestrator(database: Client, notifications = creat
 
     const terms = getCurrentDraftTerms();
     try {
-      await notifications.ensureForRegistration({ registrationId: id, termsVersion: terms.version, mediaUrl: new URL(terms.publicPath, origin).toString(), filename: terms.filename, sha256: terms.sha256 });
+      const mediaUrl = new URL(terms.publicPath, origin).toString();
+      await notifications.ensureForRegistration({ registrationId: id, termsVersion: terms.version, mediaUrl, filename: terms.filename, sha256: terms.sha256,
+        caption: createReceiptCaption(mediaUrl, terms.legalMarker) });
     } catch {
       // A durable receipt_required flag keeps this persisted registration reconcilable.
       onNotificationPersistenceFailure();

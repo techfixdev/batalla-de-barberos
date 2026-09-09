@@ -2,7 +2,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 
 import { createReceiptCaption } from '../../src/lib/server/notifications/receipt-caption';
-import { safeErrorCode, type ReceiptMessenger, type SendReceiptCommand } from '../../src/lib/server/notifications/contracts';
+import { isValidReceiptDocument, safeErrorCode, type ReceiptMessenger, type SendReceiptCommand } from '../../src/lib/server/notifications/contracts';
 import { createReceiptNotificationRepository, deriveLogicalMessageKey } from '../../src/lib/server/notifications/registration-receipts';
 import { createReceiptService } from '../../src/lib/server/notifications/receipt-service';
 import { DRAFT_TERMS } from '../../src/lib/terms/draft-terms-manifest';
@@ -13,6 +13,8 @@ const oldPdf = 'https://batalla.test/documentos/bases-y-categorias/borrador-2026
 const newPdf = 'https://batalla.test/documentos/bases-y-categorias/borrador-2026-10-v1.pdf';
 const oldFilename = 'bases-y-categorias-batalla-de-barberos-borrador-2026-09-v1.pdf';
 const marker = 'BORRADOR — PENDIENTE DE REVISIÓN LEGAL';
+const currentPdf = 'https://batalla.test/documentos/bases-y-categorias/bases-2026-09-v1.pdf';
+const currentFilename = 'bases-y-categorias-batalla-de-barberos-2026-09-v1.pdf';
 
 async function database() {
   const client = createClient({ url: 'file::memory:' });
@@ -92,6 +94,31 @@ describe('provider-neutral document receipt service', () => {
       ]);
   });
 
+  it('rejects crossed captions for recognized historical and current documents before dispatch', async () => {
+    const cases = [
+      { mediaUrl: oldPdf, filename: oldFilename, validCaption: createReceiptCaption(oldPdf, marker), crossedCaption: createReceiptCaption(oldPdf, '') },
+      { mediaUrl: currentPdf, filename: currentFilename, validCaption: createReceiptCaption(currentPdf, ''), crossedCaption: createReceiptCaption(currentPdf, marker) },
+    ];
+
+    for (const item of cases) {
+      const client = await database();
+      const { repository, logicalMessageKey } = await pendingNotification(client, {
+        mediaUrl: item.mediaUrl, filename: item.filename, caption: item.validCaption,
+      });
+      await client.execute({ sql: 'UPDATE receipt_notifications SET caption_text = ?', args: [item.crossedCaption] });
+      const commands: SendReceiptCommand[] = [];
+
+      await createReceiptService(repository, { send: async (command) => {
+        commands.push(command);
+        return { kind: 'accepted', acceptedArtifact: 'document', evidence: 'document-response-marker', httpStatus: 202 };
+      } }).dispatch(logicalMessageKey);
+
+      expect(commands, item.mediaUrl).toEqual([]);
+      expect((await client.execute('SELECT attempt_count, status FROM receipt_notifications')).rows)
+        .toEqual([{ attempt_count: 0, status: 'pending' }]);
+    }
+  });
+
   it('rejects corrupted persisted snapshots before sending any document command', async () => {
     const invalidSnapshots = [
       ['media_url', 'http://batalla.test/documentos/bases-y-categorias/borrador-2026-09-v1.pdf'],
@@ -141,8 +168,15 @@ describe('provider-neutral document receipt service', () => {
     expect(commands[0]?.attemptKey).not.toBe(logicalMessageKey);
   });
 
-  it('builds receipt-only Spanish copy with the exact marker and fallback URL', () => {
+  it('builds historical and current canonical captions while rejecting arbitrary mutations', () => {
     expect(createReceiptCaption(oldPdf, marker)).toBe(`Recibimos tu inscripción a Batalla de Barberos.\n\nEste mensaje confirma únicamente la recepción de tu inscripción. No implica selección, aceptación para competir, confirmación de participación ni asignación de categoría.\n\nAdjuntamos las bases y categorías: ${marker}.\n\nSi no podés abrir el documento adjunto, consultá esta misma versión: ${oldPdf}`);
+    const currentCaption = createReceiptCaption(currentPdf, '');
+    expect(currentCaption).toContain('\n\nAdjuntamos las bases y categorías.\n\n');
+    expect(isValidReceiptDocument({ kind: 'document', mediaUrl: currentPdf, filename: currentFilename, mimeType: 'application/pdf', caption: currentCaption })).toBe(true);
+    expect(isValidReceiptDocument({ kind: 'document', mediaUrl: currentPdf, filename: currentFilename, mimeType: 'application/pdf', caption: currentCaption.replace('Adjuntamos', 'Incluimos') })).toBe(false);
+    const genericPdf = 'https://batalla.test/documentos/acuse-generico.pdf';
+    expect(isValidReceiptDocument({ kind: 'document', mediaUrl: genericPdf, filename: 'acuse-generico.pdf', mimeType: 'application/pdf', caption: createReceiptCaption(genericPdf) })).toBe(true);
+    expect(isValidReceiptDocument({ kind: 'document', mediaUrl: genericPdf, filename: 'acuse-generico.pdf', mimeType: 'application/pdf', caption: createReceiptCaption(genericPdf, '') })).toBe(true);
     expectTypeOf<ReceiptMessenger['send']>().parameters.toEqualTypeOf<[SendReceiptCommand]>();
     expect(safeErrorCode('provider echoed a secret')).toBe('PROVIDER_REJECTED');
   });

@@ -16,6 +16,7 @@ const databases: Client[] = [];
 const registrationId = 'registration-1';
 const origin = 'https://batalla.test';
 const terms = getDraftTermsByVersion('draft-2026-09-v1')!;
+const currentTerms = getDraftTermsByVersion('terms-2026-09-v1')!;
 
 async function database() {
   const client = createClient({ url: 'file::memory:' });
@@ -101,6 +102,20 @@ describe('admin receipt recovery', () => {
     await expect(recovery.reconcile({ registrationId: 'unknown' })).resolves.toEqual({ kind: 'notfound' });
     expect((await client.execute('SELECT status, attempt_count FROM receipt_notifications')).rows).toEqual([{ status: 'pending', attempt_count: 0 }]);
     expect(sends).toBe(0);
+  });
+
+  it('reconciles the current marker-free caption from its resolved terms version', async () => {
+    const client = await database();
+    await client.execute({ sql: 'UPDATE barber_signups SET terms_version = ? WHERE id = ?', args: [currentTerms.version, registrationId] });
+    const notifications = createReceiptNotificationRepository(client);
+    const recovery = createReceiptRecoveryService({ registrations: createRegistrationRepository(client), notifications, canonicalSiteOrigin: origin, dispatchAvailable: false,
+      messenger: { send: async () => ({ kind: 'uncertain', code: 'PROVIDER_NETWORK' }) } });
+
+    await expect(recovery.reconcile({ registrationId })).resolves.toEqual({ kind: 'unavailable' });
+    expect((await client.execute('SELECT media_url, caption_text FROM receipt_notifications')).rows).toEqual([{
+      media_url: new URL(currentTerms.publicPath, origin).href,
+      caption_text: expect.stringContaining('\n\nAdjuntamos las bases y categorías.\n\n'),
+    }]);
   });
 
   it('rejects unknown manifest versions and non-canonical origins without notification or send side effects', async () => {

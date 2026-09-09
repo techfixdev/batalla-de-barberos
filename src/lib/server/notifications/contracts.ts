@@ -1,3 +1,4 @@
+import { DRAFT_TERMS } from '../../terms/draft-terms-manifest';
 import { createReceiptCaption } from './receipt-caption';
 
 export const SAFE_ERROR_CODES = [
@@ -33,8 +34,17 @@ export function isValidReceiptDocument(value: unknown): value is ReceiptDocument
   const document = value as Partial<ReceiptDocument>;
   if (document.kind !== 'document' || typeof document.mediaUrl !== 'string' || typeof document.filename !== 'string'
     || document.mimeType !== 'application/pdf' || typeof document.caption !== 'string') return false;
-  return document.filename.endsWith('.pdf') && isImmutablePdfUrl(document.mediaUrl)
-    && document.caption === createReceiptCaption(document.mediaUrl);
+  if (!document.filename.endsWith('.pdf') || !isImmutablePdfUrl(document.mediaUrl)) return false;
+
+  const pathname = new URL(document.mediaUrl).pathname;
+  const identities = Object.values(DRAFT_TERMS);
+  const pathIdentity = identities.find((terms) => terms.publicPath === pathname);
+  const filenameIdentity = identities.find((terms) => terms.filename === document.filename);
+  if (pathIdentity || filenameIdentity) {
+    return pathIdentity === filenameIdentity
+      && document.caption === createReceiptCaption(document.mediaUrl, pathIdentity?.legalMarker);
+  }
+  return [createReceiptCaption(document.mediaUrl), createReceiptCaption(document.mediaUrl, '')].includes(document.caption);
 }
 
 export function safeErrorCode(value: string): SafeErrorCode {

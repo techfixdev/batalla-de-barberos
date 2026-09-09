@@ -1,0 +1,52 @@
+---
+import termsSource from '../../content/draft-terms/terms-2026-09-v1.json';
+import { getCurrentDraftTerms } from '../lib/terms/draft-terms-manifest';
+
+const terms = getCurrentDraftTerms();
+if (termsSource.version !== terms.version) {
+  throw new Error(`Terms source version ${termsSource.version} does not match current manifest ${terms.version}`);
+}
+---
+
+<dialog id="terms-acceptance-dialog" class="terms-dialog" aria-labelledby="terms-dialog-title">
+  <div class="terms-dialog__shell">
+    <header class="terms-dialog__header">
+      <p class="eyebrow">Confirmación requerida</p>
+      <h2 id="terms-dialog-title">Bases y categorías</h2>
+      <p>{termsSource.intro}</p>
+      <p class="terms-dialog__version">Versión: <strong>{termsSource.version}</strong> · <a href={terms.publicPath} type={terms.mimeType}>Bases y categorías (PDF)</a></p>
+    </header>
+
+    <article id="terms-dialog-body" class="terms-dialog__body" role="region" aria-label="Bases completas" tabindex="0" autofocus>
+      {termsSource.categories.map((category) => (
+        <section class="terms-dialog__category" data-terms-category>
+          <h3>{category.number} — {category.name}</h3>
+          <p><strong>Duración:</strong> {category.duration}</p>
+          <ul>{category.rules.map((rule) => <li data-terms-rule>{rule}</li>)}</ul>
+        </section>
+      ))}
+      <section class="terms-dialog__category">
+        <h3>Requisitos compartidos</h3>
+        <ul>{termsSource.sharedRequirements.map((requirement) => <li>{requirement}</li>)}</ul>
+      </section>
+      <section class="terms-dialog__disclosures">
+        <h3>Participación y privacidad</h3>
+        <p>La inscripción guardada no implica selección ni confirma participación. La respuesta posterior de la persona participante se registra por separado.</p>
+        <p>El acuse por WhatsApp con el PDF adjunto no constituye consentimiento legal. Consultá el <a href="/participacion">aviso de participación</a> y la <a href="/privacidad">política de privacidad</a>.</p>
+      </section>
+    </article>
+
+    <footer class="terms-dialog__footer">
+      <p id="terms-read-status" aria-live="polite">Recorré las bases hasta el final para habilitar la confirmación.</p>
+      <label class="terms-dialog__consent" for="acceptedRules">
+        <input id="acceptedRules" name="acceptedRules" type="checkbox" disabled aria-describedby="acceptedRules-error terms-read-status" />
+        <span>Acepto las bases</span>
+      </label>
+      <span class="field-error" id="acceptedRules-error"></span>
+      <div class="terms-dialog__actions">
+        <button id="terms-cancel" class="button" type="button">Cancelar</button>
+        <button id="terms-confirm" class="button button-primary" type="button" disabled>Aceptar y enviar</button>
+      </div>
+    </footer>
+  </div>
+</dialog>

@@ -17,11 +17,11 @@ describe('public competition categories', () => {
       readFile(resolve(root, 'src/components/BarberRules.astro'), 'utf8'),
       readFile(resolve(root, 'src/pages/index.astro'), 'utf8'),
       readFile(resolve(root, 'src/components/SignupForm.astro'), 'utf8'),
-      readFile(resolve(root, 'content/draft-terms/draft-2026-09-v3.json'), 'utf8'),
+      readFile(resolve(root, 'content/draft-terms/terms-2026-09-v1.json'), 'utf8'),
     ]);
     const source = JSON.parse(sourceText) as { categories: Array<{ name: string; duration: string; rules: string[] }> };
 
-    expect(component).toContain("import terms from '../../content/draft-terms/draft-2026-09-v3.json';");
+    expect(component).toContain("import terms from '../../content/draft-terms/terms-2026-09-v1.json';");
     expect(component).toContain('terms.categories.map');
     expect(index).toContain("import BarberRules from '../components/BarberRules.astro';");
     expect(index).toContain('<BarberRules />');

@@ -167,8 +167,11 @@ describe('signup identity and orchestration', () => {
       } as never);
       expect(saved.status).toBe(201);
       expect(getDatabaseMock).toHaveBeenCalledTimes(1);
-      expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
-        .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v3.pdf' }]);
+      expect((await client.execute('SELECT media_url, caption_text FROM receipt_notifications')).rows)
+        .toEqual([{
+          media_url: 'https://public.example.test/documentos/bases-y-categorias/bases-2026-09-v1.pdf',
+          caption_text: expect.stringContaining('Adjuntamos las bases y categorías.'),
+        }]);
       expect(fetchSpy).not.toHaveBeenCalled();
 
       getDatabaseMock.mockClear();
@@ -196,8 +199,10 @@ describe('signup identity and orchestration', () => {
     } as never);
 
     expect(response.status).toBe(201);
+    expect((await client.execute('SELECT terms_version, notice_version FROM barber_signups')).rows)
+      .toEqual([{ terms_version: 'terms-2026-09-v1', notice_version: 'public-copy-2026-09-v2' }]);
     expect((await client.execute('SELECT media_url FROM receipt_notifications')).rows)
-      .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/borrador-2026-09-v3.pdf' }]);
+      .toEqual([{ media_url: 'https://public.example.test/documentos/bases-y-categorias/bases-2026-09-v1.pdf' }]);
 
     let databaseUsed = false;
     const blocked = createSignupPost({

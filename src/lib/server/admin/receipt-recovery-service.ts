@@ -19,7 +19,7 @@ function expectedSnapshot(terms: DraftTerms, origin: string) {
     const site = new URL(origin);
     if (site.protocol !== 'https:' || site.username || site.password || site.pathname !== '/' || site.search || site.hash) return null;
     const mediaUrl = new URL(terms.publicPath, site).href;
-    return { mediaUrl, filename: terms.filename, mimeType: terms.mimeType, sha256: terms.sha256, caption: createReceiptCaption(mediaUrl) };
+    return { mediaUrl, filename: terms.filename, mimeType: terms.mimeType, sha256: terms.sha256, caption: createReceiptCaption(mediaUrl, terms.legalMarker) };
   } catch { return null; }
 }
 

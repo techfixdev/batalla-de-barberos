@@ -39,7 +39,7 @@ export function validateSignup(value: unknown): ValidationResult {
   if (!phoneE164) errors.phone = 'Ingresá un teléfono argentino válido con +54 9 … o 0… 15 ….';
   if (barbershop.length > 120) errors.barbershop = 'El nombre de la barbería es demasiado largo.';
   if (!EXPERIENCE_OPTIONS.includes(experience as Experience)) errors.experience = 'Elegí tu nivel de experiencia.';
-  if (!acceptedRules) errors.acceptedRules = 'Tenés que confirmar que leíste el aviso de participación, la política de privacidad y las bases y categorías (PDF): BORRADOR — PENDIENTE DE REVISIÓN LEGAL.';
+  if (!acceptedRules) errors.acceptedRules = 'Tenés que confirmar el aviso de participación, la política de privacidad y las bases y categorías (PDF).';
 
   if (!phoneE164 || Object.keys(errors).length > 0) return { success: false, errors };
   return { success: true, data: { fullName, email, phone, phoneE164, barbershop, experience: experience as Experience, acceptedRules } };

@@ -26,17 +26,17 @@ type DraftTermsSource = {
 };
 
 describe('immutable draft terms PDFs', () => {
-  it('verifies every committed version while selecting branded v3 as the current immutable draft', async () => {
+  it('verifies every committed version while selecting marker-free terms as current', async () => {
     const terms = getCurrentDraftTerms();
     const result = await verifyTermsPdf({ root });
 
     expect(result.current).toEqual({ version: terms.version, sha256: terms.sha256, pages: expect.any(Number) });
-    expect(result.documents.map(({ version }) => version)).toEqual(['draft-2026-09-v1', 'draft-2026-09-v2', 'draft-2026-09-v3']);
+    expect(result.documents.map(({ version }) => version)).toEqual(['draft-2026-09-v1', 'draft-2026-09-v2', 'draft-2026-09-v3', 'terms-2026-09-v1']);
     expect(result.documents.find(({ version }) => version === 'draft-2026-09-v1')?.sha256).toBe(historicalV1Sha256);
     expect(result.documents.find(({ version }) => version === 'draft-2026-09-v2')?.sha256).toBe(historicalV2Sha256);
   });
 
-  it('puts the legal marker on every v3 page and keeps each complete approved category together', async () => {
+  it('keeps the current PDF marker-free and each complete approved category together', async () => {
     const terms = getCurrentDraftTerms();
     const source: DraftTermsSource = await loadDraftTermsSource({ root, sourcePath: terms.sourcePath });
     const bytes = await readFile(resolve(root, 'public', terms.publicPath.slice(1)));
@@ -44,13 +44,24 @@ describe('immutable draft terms PDFs', () => {
 
     expect(pages.length).toBe(7);
     expect(source.categories.reduce((total, category) => total + category.rules.length, 0)).toBe(66);
-    expect(pages.every((page) => page.includes(marker))).toBe(true);
+    expect(pages.every((page) => !page.includes(marker))).toBe(true);
     for (const category of source.categories) {
       const matchingPages = pages.filter((page) => page.includes(category.name));
       expect(matchingPages).toHaveLength(1);
       for (const rule of category.rules) expect(matchingPages[0]).toContain(rule);
     }
     expect(pages.join('\n')).toContain('La experiencia indicada en la inscripción no es una categoría de competencia');
+  });
+
+  it('copies all substantive rules and placeholders exactly from branded v3', async () => {
+    const [historical, current] = await Promise.all([
+      loadDraftTermsSource({ root, sourcePath: DRAFT_TERMS['draft-2026-09-v3'].sourcePath }),
+      loadDraftTermsSource({ root, sourcePath: DRAFT_TERMS['terms-2026-09-v1'].sourcePath }),
+    ]);
+
+    expect(current.categories).toEqual(historical.categories);
+    expect(current.sharedRequirements).toEqual(historical.sharedRequirements);
+    expect(current.legalMarker).toBeUndefined();
   });
 
   it('embeds the pinned branded JPEG as a decoded PDF image XObject', async () => {
@@ -68,7 +79,7 @@ describe('immutable draft terms PDFs', () => {
     expect(image.bytes).toEqual(emblem);
   });
 
-  it('reproduces frozen v1/v2 bytes and current v3 bytes exactly', async () => {
+  it('reproduces all historical and current bytes exactly', async () => {
     for (const terms of Object.values(DRAFT_TERMS)) {
       const source = await loadDraftTermsSource({ root, sourcePath: terms.sourcePath });
       const actual = await readFile(resolve(root, 'public', terms.publicPath.slice(1)));

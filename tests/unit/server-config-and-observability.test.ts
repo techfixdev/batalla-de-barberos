@@ -144,6 +144,7 @@ describe('server configuration and observability', () => {
     const v1PdfHeaders = headers.headers.find((rule) => rule.source === '/documentos/bases-y-categorias/borrador-2026-09-v1.pdf')?.headers ?? [];
     const v2PdfHeaders = headers.headers.find((rule) => rule.source === '/documentos/bases-y-categorias/borrador-2026-09-v2.pdf')?.headers ?? [];
     const v3PdfHeaders = headers.headers.find((rule) => rule.source === '/documentos/bases-y-categorias/borrador-2026-09-v3.pdf')?.headers ?? [];
+    const currentPdfHeaders = headers.headers.find((rule) => rule.source === '/documentos/bases-y-categorias/bases-2026-09-v1.pdf')?.headers ?? [];
 
     expect([...environment.keys()]).toEqual(DOCUMENTED_ENVIRONMENT_NAMES);
     expect(environment.get('WHATSAPP_DISPATCH_ENABLED')).toBe('false');
@@ -158,7 +159,7 @@ describe('server configuration and observability', () => {
       { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
     ]));
     expect(globalHeaders.find((header) => header.key === 'Cache-Control')).toBeUndefined();
-    for (const pdfHeaders of [v1PdfHeaders, v2PdfHeaders, v3PdfHeaders]) {
+    for (const pdfHeaders of [v1PdfHeaders, v2PdfHeaders, v3PdfHeaders, currentPdfHeaders]) {
       expect(pdfHeaders).toEqual(expect.arrayContaining([
         { key: 'Content-Type', value: 'application/pdf' },
         { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },

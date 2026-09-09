@@ -48,20 +48,20 @@ function brandedBody(lines, startY) {
   return `BT\n/F1 10 Tf\n0.08 0.08 0.08 rg\n50 ${startY} Td\n${wrapped.map((line, index) => `${index ? '0 -17 Td\n' : ''}(${pdfText(toWin1252(line))}) Tj`).join('\n')}\nET`;
 }
 
-function brandedPageStream({ page, total, title, lines, cover = false }) {
+function brandedPageStream({ page, total, title, lines, cover = false, legalMarker = MARKER, footerLabel = 'BORRADOR LEGAL' }) {
   const header = [
     '1 1 1 rg 0 0 612 792 re f',
     '0.035 0.035 0.035 rg 0 712 612 80 re f',
     'q 90 0 0 60 28 722 cm /Im1 Do Q',
     brandedText('ENTRE CORTES', 132, 758, 15, 'F2', '0.91 0.70 0.24'),
     brandedText('BATALLA DE BARBEROS', 132, 738, 12, 'F2', '1 1 1'),
-    brandedText(MARKER, 378, 746, 7.5, 'F2', '1 1 1'),
+    ...(legalMarker ? [brandedText(legalMarker, 378, 746, 7.5, 'F2', '1 1 1')] : []),
     '0.82 0.61 0.16 rg 28 703 556 2 re f',
   ];
   const footer = [
     '0.82 0.61 0.16 rg 28 43 556 1 re f',
     brandedText('ENTRE CORTES · BATALLA DE BARBEROS', 28, 26, 7.5, 'F2', '0.32 0.27 0.18'),
-    brandedText(`BORRADOR LEGAL · ${page}/${total}`, 470, 26, 7.5, 'F2', '0.32 0.27 0.18'),
+    brandedText(`${footerLabel} · ${page}/${total}`, 470, 26, 7.5, 'F2', '0.32 0.27 0.18'),
   ];
   if (cover) {
     return [...header,
@@ -80,18 +80,20 @@ function brandedPageStream({ page, total, title, lines, cover = false }) {
 }
 
 function createBrandedTermsPdf(source) {
-  if (source.legalMarker !== MARKER || source.categories?.length !== 5) {
-    throw new Error('Draft terms source does not match the branded v3 contract');
+  const historical = source.version === 'draft-2026-09-v3' && source.legalMarker === MARKER;
+  const current = source.version === 'terms-2026-09-v1' && source.legalMarker === undefined;
+  if ((!historical && !current) || source.categories?.length !== 5) {
+    throw new Error('Terms source does not match a branded immutable contract');
   }
   const pageDefinitions = [
     {
       title: 'BASES Y CATEGORÍAS',
       cover: true,
       lines: [
-        'Versión: draft-2026-09-v3',
+        `Versión: ${source.version}`,
         source.intro,
         '5 categorías · 66 reglas de competencia',
-        'Contenido general pendiente de revisión legal. La inscripción no asigna una categoría.',
+        ...(historical ? ['Contenido general pendiente de revisión legal. La inscripción no asigna una categoría.'] : []),
       ],
     },
     ...source.categories.map((category) => ({
@@ -100,13 +102,15 @@ function createBrandedTermsPdf(source) {
     })),
     {
       title: 'REQUISITOS COMPARTIDOS',
-      lines: ['Contenido pendiente de revisión legal.', ...source.sharedRequirements],
+      lines: [...(historical ? ['Contenido pendiente de revisión legal.'] : []), ...source.sharedRequirements],
     },
   ];
   const streams = pageDefinitions.map((definition, index) => brandedPageStream({
     ...definition,
     page: index + 1,
     total: pageDefinitions.length,
+    legalMarker: historical ? MARKER : '',
+    footerLabel: historical ? 'BORRADOR LEGAL' : 'BASES Y CATEGORÍAS',
   }));
   const emblem = readFileSync(EMBLEM_PATH);
   const pageIds = pageDefinitions.map((_, index) => 6 + index * 2);
@@ -156,7 +160,7 @@ function pagesForSource(source) {
 }
 
 export function createTermsPdf(source) {
-  if (source.version === 'draft-2026-09-v3') return createBrandedTermsPdf(source);
+  if (source.version === 'draft-2026-09-v3' || source.version === 'terms-2026-09-v1') return createBrandedTermsPdf(source);
   const pages = pagesForSource(source);
   const streams = pages.map(pageStream);
   const pageIds = pages.map((_, index) => 4 + index * 2);
