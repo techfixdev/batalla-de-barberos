@@ -16,7 +16,7 @@ describe('public sponsors carousel', () => {
     expect(page).toMatch(/<BarberRules \/>\s*<SponsorsCarousel \/>\s*<section id="inscripcion"/);
   });
 
-  it('renders all five visually verified sponsors as direct static images', async () => {
+  it('renders all eight visually verified sponsors as direct static images', async () => {
     const [component, css] = await Promise.all([
       source('src/components/SponsorsCarousel.astro'),
       source('src/styles/global.css'),
@@ -29,8 +29,14 @@ describe('public sponsors carousel', () => {
       'Jr Estudio 203',
       'Entre Cortes Stream',
       'Giovato Estudio',
+      'Zeta Distribuciones',
+      'Everest',
+      'Pimp Paradise Pomada',
     ]) {
       expect(component).toContain(`name: '${name}'`);
+    }
+    for (const asset of ['zeta-distribuciones.webp', 'everest.webp', 'pimp-paradise.webp']) {
+      expect(component).toContain(asset);
     }
     expect(component).toContain('<img');
     expect(component).toContain('src={sponsor.logo.src}');
@@ -60,8 +66,12 @@ describe('public sponsors carousel', () => {
     expect(component).toContain("document.addEventListener('visibilitychange'");
     expect(component).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
     expect(css).toMatch(/\.sponsors-track\s*\{[^}]*overflow-x:\s*auto[^}]*scroll-snap-type:\s*x mandatory/);
-    expect(css).toMatch(/\.sponsor-card\s*\{[^}]*flex:\s*0 0 17rem[^}]*scroll-snap-align:\s*start/);
-    expect(css).toMatch(/\.sponsor-logo\s*\{[^}]*height:\s*10\.625rem/);
+    expect(css).toMatch(/\.sponsor-card\s*\{[^}]*flex:\s*0 0 21rem[^}]*scroll-snap-align:\s*start/);
+    expect(css).toMatch(/\.sponsor-card figure\s*\{[^}]*grid-template-rows:\s*14rem minmax\(4\.5rem, auto\)/);
+    expect(css).toMatch(/\.sponsor-logo\s*\{[^}]*min-width:\s*0[^}]*min-height:\s*0[^}]*padding:\s*1\.25rem/);
+    expect(css).toMatch(/\.sponsor-logo img\s*\{[^}]*width:\s*auto[^}]*height:\s*auto[^}]*max-width:\s*100%[^}]*max-height:\s*100%[^}]*object-fit:\s*contain/);
+    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.sponsor-card\s*\{[^}]*flex-basis:\s*78%/);
+    expect(css).toMatch(/@media \(max-width: 650px\)[^]*\.sponsor-card figure\s*\{[^}]*grid-template-rows:\s*13rem minmax\(4rem, auto\)/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[^]*\.sponsors-track\s*\{[^}]*scroll-behavior:\s*auto/);
   });
 });

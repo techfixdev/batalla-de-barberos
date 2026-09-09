@@ -1,5 +1,5 @@
 import { dev } from 'astro';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 let astroServer: Awaited<ReturnType<typeof dev>>;
 let appOrigin: string;
@@ -17,7 +17,64 @@ test.afterAll(async () => {
   await astroServer?.stop();
 });
 
-test('shows five uniform uncropped sponsor logos and navigates with controls and keyboard', async ({ page }) => {
+async function expectSponsorArtworkContained(page: Page, viewportWidth: number) {
+  await page.setViewportSize({ width: viewportWidth, height: 900 });
+  await page.goto(`${appOrigin}/`);
+
+  const cards = page.locator('[data-sponsor-card]');
+  await expect(cards).toHaveCount(8);
+
+  for (let index = 0; index < 8; index += 1) {
+    const card = cards.nth(index);
+    const image = card.locator('.sponsor-logo img');
+    await image.scrollIntoViewIfNeeded();
+    await image.evaluate(async (element) => {
+      const sponsorImage = element as HTMLImageElement;
+      if (!sponsorImage.complete) {
+        await new Promise<void>((resolve, reject) => {
+          sponsorImage.addEventListener('load', () => resolve(), { once: true });
+          sponsorImage.addEventListener('error', () => reject(new Error(`Failed to load ${sponsorImage.src}`)), { once: true });
+        });
+      }
+      await sponsorImage.decode();
+    });
+
+    const geometry = await card.evaluate((element) => {
+      const panel = element.querySelector('.sponsor-logo')!.getBoundingClientRect();
+      const artwork = element.querySelector('.sponsor-logo img')!.getBoundingClientRect();
+      const caption = element.querySelector('figcaption')!.getBoundingClientRect();
+      return {
+        panel: { top: panel.top, right: panel.right, bottom: panel.bottom, left: panel.left },
+        artwork: { top: artwork.top, right: artwork.right, bottom: artwork.bottom, left: artwork.left },
+        caption: { top: caption.top },
+      };
+    });
+
+    const tolerance = 1;
+    expect(geometry.artwork.left).toBeGreaterThanOrEqual(geometry.panel.left - tolerance);
+    expect(geometry.artwork.right).toBeLessThanOrEqual(geometry.panel.right + tolerance);
+    expect(geometry.artwork.top).toBeGreaterThanOrEqual(geometry.panel.top - tolerance);
+    expect(geometry.artwork.bottom).toBeLessThanOrEqual(geometry.panel.bottom + tolerance);
+    expect(geometry.panel.bottom).toBeLessThanOrEqual(geometry.caption.top + tolerance);
+    expect(geometry.artwork.bottom).toBeLessThanOrEqual(geometry.caption.top - tolerance);
+    expect(Math.abs(
+      (geometry.artwork.left + geometry.artwork.right) / 2
+      - (geometry.panel.left + geometry.panel.right) / 2,
+    )).toBeLessThanOrEqual(tolerance);
+    expect(Math.abs(
+      (geometry.artwork.top + geometry.artwork.bottom) / 2
+      - (geometry.panel.top + geometry.panel.bottom) / 2,
+    )).toBeLessThanOrEqual(tolerance);
+  }
+}
+
+test('keeps every sponsor artwork centered inside its panel and above its caption responsively', async ({ page }) => {
+  for (const viewportWidth of [1280, 768, 390, 320]) {
+    await expectSponsorArtworkContained(page, viewportWidth);
+  }
+});
+
+test('shows eight large uncropped sponsor logos and navigates with controls and keyboard', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${appOrigin}/`);
 
@@ -27,15 +84,15 @@ test('shows five uniform uncropped sponsor logos and navigates with controls and
   const next = sponsors.getByRole('button', { name: 'Sponsor siguiente' });
 
   const sponsorCards = sponsors.locator('.sponsor-card');
-  await expect(sponsorCards).toHaveCount(5);
+  await expect(sponsorCards).toHaveCount(8);
   const cardMetrics = await sponsorCards.evaluateAll((cards) => cards.map((card) => ({
     width: card.getBoundingClientRect().width,
     logoHeight: card.querySelector('.sponsor-logo')?.getBoundingClientRect().height ?? 0,
   })));
   expect(new Set(cardMetrics.map(({ width }) => width)).size).toBe(1);
   for (const { width, logoHeight } of cardMetrics) {
-    expect(width).toBeCloseTo(272, 0);
-    expect(logoHeight).toBeCloseTo(170, 0);
+    expect(width).toBeCloseTo(336, 0);
+    expect(logoHeight).toBeCloseTo(224, 0);
   }
   await expect.poll(() => page.evaluate(() => {
     const rules = document.querySelector('#categorias');
@@ -46,7 +103,7 @@ test('shows five uniform uncropped sponsor logos and navigates with controls and
       && Boolean(sponsorsSection.compareDocumentPosition(signup) & Node.DOCUMENT_POSITION_FOLLOWING);
   })).toBe(true);
   const sponsorImages = sponsors.locator('img');
-  await expect(sponsorImages).toHaveCount(5);
+  await expect(sponsorImages).toHaveCount(8);
 
   await expect(previous).toBeDisabled();
   const initialLeft = await track.evaluate((element) => element.scrollLeft);
@@ -62,7 +119,7 @@ test('shows five uniform uncropped sponsor logos and navigates with controls and
   await expect.poll(() => track.evaluate((element) => element.scrollLeft)).toBeLessThanOrEqual(5);
   await expect(previous).toBeDisabled();
 
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     const image = sponsorImages.nth(index);
     await image.scrollIntoViewIfNeeded();
     const dimensions = await image.evaluate(async (element) => {
@@ -131,7 +188,7 @@ test('disables autoplay and smooth scrolling when reduced motion is requested', 
 test.describe('mobile sponsor carousel', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
-  test('fits more than one card and exposes native horizontal scrolling for swipe', async ({ page }) => {
+  test('shows one large card with the next card peeking and supports native swipe scrolling', async ({ page }) => {
     await page.goto(`${appOrigin}/`);
     const sponsors = page.getByRole('region', { name: 'Sponsors del evento' });
     const track = sponsors.getByRole('group', { name: 'Logos de sponsors' });
@@ -140,9 +197,9 @@ test.describe('mobile sponsor carousel', () => {
     const [trackBox, cardBox] = await Promise.all([track.boundingBox(), firstCard.boundingBox()]);
     expect(trackBox).not.toBeNull();
     expect(cardBox).not.toBeNull();
-    expect(cardBox!.width).toBeLessThan(trackBox!.width / 2);
-    expect(cardBox!.width).toBeGreaterThan(140);
-    await expect(firstCard.locator('.sponsor-logo')).toHaveCSS('height', '120px');
+    expect(cardBox!.width).toBeGreaterThan(trackBox!.width * 0.7);
+    expect(cardBox!.width).toBeLessThan(trackBox!.width * 0.85);
+    await expect(firstCard.locator('.sponsor-logo')).toHaveCSS('height', '208px');
     await expect.poll(() => track.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
 
     await track.evaluate((element) => element.scrollTo({ left: element.scrollWidth, behavior: 'instant' }));
