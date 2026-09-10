@@ -1,5 +1,6 @@
 ---
 import RegistrationStates from '../../../components/admin/RegistrationStates.astro';
+import { EXPERIENCE_OPTIONS } from '../../../lib/barber-signups';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getDatabase } from '../../../lib/database';
 import {
@@ -7,15 +8,18 @@ import {
   REVIEW_STATE_OPTIONS,
   participantResponseLabel,
   reviewStateLabel,
+  experienceLabel,
 } from '../../../lib/server/admin/registration-labels';
 import { presentRegistration } from '../../../lib/server/admin/registration-presentation';
 import { createRegistrationReadRepository, type RegistrationDetail } from '../../../lib/server/admin/registration-read-repository';
 import { createAdminMessageRuntime } from '../../../lib/server/admin/admin-message-runtime';
 import type { AdminMessageJobSummary } from '../../../lib/server/admin/admin-message-contracts';
+import { buildManualWhatsAppConfirmationUrl } from '../../../lib/server/admin/manual-whatsapp-confirmation';
 
 const auditActions = {
   review_state_changed: 'Revisión de inscripción',
   participant_response_changed: 'Respuesta del participante',
+  registration_responses_updated: 'Datos enviados actualizados',
 } as const;
 const receiptOutcomes = {
   in_progress: 'En curso', sent: 'Documento aceptado por el proveedor', failed: 'Fallido', uncertain: 'Resultado incierto',
@@ -34,12 +38,12 @@ function safeHttpsUrl(value: string): string | null {
 }
 
 function auditActionLabel(action: string) {
-  if (action === 'review_state_changed' || action === 'participant_response_changed') return auditActions[action];
+  if (action === 'review_state_changed' || action === 'participant_response_changed' || action === 'registration_responses_updated') return auditActions[action];
   return 'Cambio de estado';
 }
 
 function auditLabel(action: string, value: string | null) {
-  if (!value || (action !== 'review_state_changed' && action !== 'participant_response_changed')) return 'No disponible';
+  if (!value || (action !== 'review_state_changed' && action !== 'participant_response_changed')) return 'Sin datos personales registrados';
   return action === 'review_state_changed' ? reviewStateLabel(value) : participantResponseLabel(value);
 }
 
@@ -83,17 +87,45 @@ else if (!registration) Astro.response.status = 404;
     const view = presentRegistration(registration);
     const documentUrl = registration.receipt && safeHttpsUrl(registration.receipt.mediaUrl);
     const staleReceipt = stalePending(registration.receipt);
+    const manualWhatsAppUrl = buildManualWhatsAppConfirmationUrl(registration);
+    const updated = Astro.url.searchParams.get('updated') === '1';
     return <section class="admin-detail" aria-labelledby="detail-title">
       <a class="admin-back" href="/admin">Volver a las inscripciones recibidas</a>
       <p class="eyebrow">Inscripción N.º {registration.registrationNumber}</p>
       <h1 id="detail-title">{registration.fullName}</h1>
+      {updated && <p class="admin-message admin-message--success" role="status">Los datos enviados se actualizaron.</p>}
+
+      <section class="admin-primary-action" aria-labelledby="answers-title">
+        <h2 id="answers-title">Datos enviados</h2>
+        <p>Editá las respuestas de la inscripción. El cambio no modifica estados, bases aceptadas ni envía mensajes.</p>
+        <form class="admin-response-form" action={`/api/admin/registrations/${encodeURIComponent(registration.id)}/responses`} method="post">
+          <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
+          <input type="hidden" name="stateVersion" value={registration.stateVersion} />
+          <label>Nombre completo<input name="fullName" autocomplete="name" required minlength="3" maxlength="100" value={registration.fullName} /></label>
+          <label>Correo electrónico<input name="email" type="email" autocomplete="email" required maxlength="160" value={registration.email} /></label>
+          <label>Teléfono argentino<input name="phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="32" value={registration.phone} /></label>
+          <label>Barbería <span>(opcional)</span><input name="barbershop" autocomplete="organization" maxlength="120" value={registration.barbershop} /></label>
+          <label>Experiencia<select name="experience" required>{EXPERIENCE_OPTIONS.map((experience) => <option value={experience} selected={registration.experience === experience}>{experienceLabel(experience)}</option>)}</select></label>
+          <button type="submit">Guardar datos enviados</button>
+        </form>
+      </section>
+
+      <section class="admin-primary-action" aria-labelledby="manual-whatsapp-title">
+        <h2 id="manual-whatsapp-title">Confirmar recepción por WhatsApp</h2>
+        <p>Abre WhatsApp con un mensaje preparado que confirma únicamente que recibimos la inscripción. No confirma selección, aceptación ni pago.</p>
+        {manualWhatsAppUrl ? <a class="admin-whatsapp-link" href={manualWhatsAppUrl} target="_blank" rel="noopener noreferrer">Abrir mensaje para {registration.fullName}</a>
+          : <p class="admin-message">Guardá un teléfono argentino válido para preparar el mensaje.</p>}
+        <p class="admin-note">Abrir el enlace no cambia estados, no registra una entrega y no envía nada desde el servidor.</p>
+      </section>
+
       <dl class="admin-detail-list">
-        <div><dt>Correo electrónico</dt><dd><a href={`mailto:${registration.email}`}>{registration.email}</a></dd></div>
-        <div><dt>Teléfono</dt><dd>{registration.phoneE164 ? <a href={`tel:${registration.phoneE164}`}>{view.phone}</a> : view.phone}</dd></div>
         <div><dt>Fecha de inscripción</dt><dd><time datetime={registration.createdAt}>{registration.createdAt}</time></dd></div>
         <div><dt>Versión de bases</dt><dd>{registration.termsVersion ?? 'No disponible (registro anterior)'}</dd></div>
       </dl>
 
+      <details class="admin-advanced">
+        <summary>Herramientas avanzadas y seguimiento</summary>
+        <div class="admin-advanced__content">
       <section aria-labelledby="states-title">
         <h2 id="states-title">Estados de esta inscripción</h2>
         <RegistrationStates registration={view} />
@@ -188,13 +220,15 @@ else if (!registration) Astro.response.status = 404;
 
       <section aria-labelledby="audit-title">
         <h2 id="audit-title">Historial de auditoría</h2>
-        {registration.auditEvents.length === 0 ? <p class="admin-note">No hay cambios de estado registrados.</p> : <ol class="admin-history">
+        {registration.auditEvents.length === 0 ? <p class="admin-note">No hay cambios administrativos registrados.</p> : <ol class="admin-history">
           {registration.auditEvents.map((event) => <li><strong>{auditActionLabel(event.action)}</strong><br />
-            {auditLabel(event.action, event.fromValue)} → {auditLabel(event.action, event.toValue)}<br />
+            {event.action === 'registration_responses_updated' ? 'Cambio registrado sin copiar datos personales al historial' : <>{auditLabel(event.action, event.fromValue)} → {auditLabel(event.action, event.toValue)}</>}<br />
             <time datetime={event.createdAt}>{event.createdAt}</time>
           </li>)}
         </ol>}
       </section>
+        </div>
+      </details>
     </section>;
   })()}
 </AdminLayout>

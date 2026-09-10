@@ -26,6 +26,8 @@ test.afterAll(async () => { await server?.stop(); client?.close(); for (const ke
 
 test('downloads real filtered and selected exports with synchronized counts on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 }); await page.goto(`${origin}/admin/login`); await page.getByLabel('Contraseña').fill(PASSWORD); await page.getByRole('button', { name: 'Ingresar' }).click();
+  await page.getByRole('link', { name: 'Herramientas' }).click();
+  await expect(page).toHaveURL(`${origin}/admin?tools=1`);
   await expect(page.getByText('Exportar 3 inscripciones con los filtros actuales')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const xlsx = page.waitForEvent('download'); const exportResponse = page.waitForResponse((response) => response.url().includes('/export')); await page.getByRole('button', { name: 'Descargar Excel' }).click();

@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRegistrationLifecycleRepository } from '../../src/lib/server/admin/registration-lifecycle-repository';
 import { createRegistrationManagementService } from '../../src/lib/server/admin/registration-management-service';
 import { createRegistrationReadRepository } from '../../src/lib/server/admin/registration-read-repository';
+import { createRegistrationResponseEditor } from '../../src/lib/server/admin/registration-response-edit';
+import { buildManualWhatsAppConfirmationUrl } from '../../src/lib/server/admin/manual-whatsapp-confirmation';
 import {
   experienceLabel,
   participantResponseLabel,
@@ -286,11 +288,12 @@ import { signAdminSessionCookie } from '../../src/lib/server/admin/session-crypt
 import { sha256 } from '../../src/lib/server/admin/session-repository';
 import { createParticipantResponseRoute } from '../../src/pages/api/admin/registrations/[id]/participant-response';
 import { createReviewStateRoute } from '../../src/pages/api/admin/registrations/[id]/review-state';
+import { createRegistrationResponsesRoute } from '../../src/pages/api/admin/registrations/[id]/responses';
 
 const FORM_SECRET = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 const FORM_CSRF = Buffer.alloc(32, 9).toString('base64url');
 const FORM_COOKIE = signAdminSessionCookie({ sessionToken: Buffer.alloc(32, 7).toString('base64url'), csrfToken: FORM_CSRF }, FORM_SECRET)!;
-const formSession = { id: 'session-form', csrfHash: sha256(FORM_CSRF), createdAt: '2026-09-01T00:00:00.000Z', expiresAt: '2026-10-01T00:00:00.000Z', revokedAt: null };
+const formSession = { id: 'session-form', tokenHash: 'token-form', csrfHash: sha256(FORM_CSRF), createdAt: '2026-09-01T00:00:00.000Z', expiresAt: '2026-10-01T00:00:00.000Z', revokedAt: null };
 
 type FormRoute = ReturnType<typeof createReviewStateRoute>;
 function formRequest(fields: readonly (readonly [string, string])[], origin = 'https://admin.example.test') {
@@ -338,6 +341,70 @@ describe('authenticated lifecycle form routes', () => {
   });
 });
 
+
+describe('submitted response editing', () => {
+  const responses = {
+    fullName: '  Persona Editada  ', email: 'EDITADA@example.test', phone: '011 15-4444-5555',
+    barbershop: '  Barbería Sur  ', experience: 'educador',
+  };
+
+  it('updates all submitted answers, raw and normalized phone atomically, increments the version, and writes a PII-free audit', async () => {
+    const client = await database();
+    await seedRegistration(client, 'response-edit', '2026-09-05T10:00:00.000Z');
+    const editor = createRegistrationResponseEditor({ database: client, now: () => '2026-09-05T11:00:00.000Z', createId: () => 'audit-response-edit' });
+
+    await expect(editor.update({ registrationId: 'response-edit', expectedStateVersion: 0, sessionId: 'session-internal', requestId: 'request-internal', responses }))
+      .resolves.toEqual({ kind: 'success', stateVersion: 1 });
+    expect((await client.execute({ sql: `SELECT full_name, email, phone, phone_e164, barbershop, experience, state_version FROM barber_signups WHERE id = ?`, args: ['response-edit'] })).rows)
+      .toEqual([{ full_name: 'Persona Editada', email: 'editada@example.test', phone: '011 15-4444-5555', phone_e164: '+5491144445555', barbershop: 'Barbería Sur', experience: 'educador', state_version: 1 }]);
+    const audits = (await client.execute({ sql: `SELECT action, from_value, to_value, session_id, request_id FROM admin_audit_events WHERE registration_id = ?`, args: ['response-edit'] })).rows;
+    expect(audits).toEqual([{ action: 'registration_responses_updated', from_value: null, to_value: null, session_id: 'session-internal', request_id: 'request-internal' }]);
+    expect(JSON.stringify(audits)).not.toContain('editada@example.test');
+    expect(JSON.stringify(audits)).not.toContain('+5491144445555');
+  });
+
+  it('rejects stale versions, invalid answers, no-op edits, and duplicate email without partial changes or audits', async () => {
+    const client = await database();
+    await seedRegistration(client, 'response-one', '2026-09-05T10:00:00.000Z');
+    await seedRegistration(client, 'response-two', '2026-09-05T10:01:00.000Z');
+    const editor = createRegistrationResponseEditor({ database: client });
+    const input = { registrationId: 'response-one', expectedStateVersion: 0, sessionId: 'session-internal', requestId: 'request-internal' };
+
+    await expect(editor.update({ ...input, responses: { ...responses, phone: 'not a phone' } })).resolves.toEqual({ kind: 'invalid' });
+    await expect(editor.update({ ...input, responses: { fullName: 'Persona response-one', email: 'response-one@example.test', phone: '+54 9 11 2345-6789', barbershop: '', experience: 'profesional' } })).resolves.toEqual({ kind: 'noop' });
+    await expect(editor.update({ ...input, expectedStateVersion: 1, responses })).resolves.toEqual({ kind: 'conflict' });
+    await expect(editor.update({ ...input, responses: { ...responses, email: 'response-two@example.test' } })).resolves.toEqual({ kind: 'email_conflict' });
+    expect((await client.execute({ sql: `SELECT full_name, email, phone, phone_e164, state_version FROM barber_signups WHERE id = ?`, args: ['response-one'] })).rows)
+      .toEqual([{ full_name: 'Persona response-one', email: 'response-one@example.test', phone: '+54 9 11 2345-6789', phone_e164: '+5491123456789', state_version: 0 }]);
+    expect((await client.execute({ sql: `SELECT COUNT(*) AS count FROM admin_audit_events WHERE registration_id = ?`, args: ['response-one'] })).rows).toEqual([{ count: 0 }]);
+  });
+
+  it('builds only encoded receipt-confirmation links for valid canonical WhatsApp destinations', () => {
+    const url = buildManualWhatsAppConfirmationUrl({ fullName: 'Ana & Sol', phoneE164: '+5491144445555', registrationNumber: 42 });
+    expect(url).toBe('https://wa.me/5491144445555?text=Hola%20Ana%20%26%20Sol%2C%20recibimos%20tu%20inscripci%C3%B3n%20a%20Batalla%20de%20Barberos.%20%C2%A1Gracias%20por%20participar!');
+    expect(url).not.toContain('acept');
+    expect(buildManualWhatsAppConfirmationUrl({ fullName: 'Ana', phoneE164: '5491144445555' })).toBeNull();
+    expect(buildManualWhatsAppConfirmationUrl({ fullName: 'Ana', phoneE164: '+12025550123' })).toBeNull();
+  });
+
+  it('protects the dedicated response route and maps duplicate email explicitly', async () => {
+    const editor = { update: vi.fn(async () => ({ kind: 'email_conflict' as const })) };
+    const handle = createRegistrationResponsesRoute({ sessionSecretB64: FORM_SECRET, sessions: { findByTokenHash: async () => formSession }, editor, createRequestId: () => 'request-form' });
+    const fields = [['csrf', FORM_CSRF], ['stateVersion', '0'], ['fullName', 'Persona Editada'], ['email', 'editada@example.test'],
+      ['phone', '011 15-4444-5555'], ['barbershop', 'Barbería Sur'], ['experience', 'educador']] as const;
+    const context = { params: { id: 'registration-1' }, locals: { adminSession: { id: formSession.id, expiresAt: formSession.expiresAt }, adminCsrfToken: FORM_CSRF } };
+
+    const duplicate = await handle({ ...context, request: formRequest(fields) });
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.text()).toBe('Ese correo electrónico ya está registrado.');
+    expect(editor.update).toHaveBeenCalledWith(expect.objectContaining({ expectedStateVersion: 0, sessionId: 'session-form', responses: expect.objectContaining({ experience: 'educador' }) }));
+
+    editor.update.mockClear();
+    const rejected = await handle({ ...context, request: formRequest(fields.filter(([name]) => name !== 'csrf'), 'https://admin.example.test') });
+    expect(rejected.status).toBe(403);
+    expect(editor.update).not.toHaveBeenCalled();
+  });
+});
 
 describe('authenticated lifecycle form storage outage', () => {
   it('returns only a static 503 before a lifecycle write when the live-session lookup fails', async () => {

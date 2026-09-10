@@ -3,6 +3,7 @@ import '../styles/global.css';
 import emblem from '../assets/barber-battle/entre-cortes-logo-ai.png';
 
 const { csrfToken } = Astro.props;
+const toolsActive = Astro.url.pathname === '/admin' && Astro.url.searchParams.get('tools') === '1';
 ---
 
 <!doctype html>
@@ -24,10 +25,16 @@ const { csrfToken } = Astro.props;
           <span class="admin-brand__area">Administración</span>
         </span>
       </a>
-      <form action="/api/admin/logout" method="post">
-        <input type="hidden" name="csrf" value={csrfToken} />
-        <button class="admin-logout" type="submit">Cerrar sesión</button>
-      </form>
+      <div class="admin-header__actions">
+        <nav class="admin-navigation" aria-label="Administración">
+          <a href="/admin" aria-current={Astro.url.pathname === '/admin' && !toolsActive ? 'page' : undefined}>Inscripciones</a>
+          <a href="/admin?tools=1" aria-current={toolsActive ? 'page' : undefined}>Herramientas</a>
+        </nav>
+        <form action="/api/admin/logout" method="post">
+          <input type="hidden" name="csrf" value={csrfToken} />
+          <button class="admin-logout" type="submit">Cerrar sesión</button>
+        </form>
+      </div>
     </header>
     <main id="contenido-admin" class="admin-main"><slot /></main>
   </body>

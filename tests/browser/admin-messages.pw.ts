@@ -114,6 +114,7 @@ test.afterAll(async () => {
 test('blocked readiness keeps export and deletion controls usable with zero private requests', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 1000 });
   await login(page);
+  await page.getByRole('link', { name: 'Herramientas' }).click();
   await expect(page.getByText(/envío privado está deshabilitado/i)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Descargar PDF' })).toBeEnabled();
   await page.getByLabel('Seleccionar inscripción 1').check();
@@ -127,6 +128,7 @@ test('ready mobile UI posts organization and confirmation actions through real r
   await start(true);
   await page.setViewportSize({ width: 390, height: 1100 });
   await login(page);
+  await page.getByRole('link', { name: 'Herramientas' }).click();
   await page.getByLabel('Seleccionar inscripción 1').check();
   await expect(page.getByText('Enviar 1 inscripciones seleccionadas')).toBeVisible();
   await page.getByLabel('Número argentino de destino').fill('011 15-2345-6799');
@@ -140,6 +142,7 @@ test('ready mobile UI posts organization and confirmation actions through real r
   await expectUsableAt(page, 390);
 
   await page.goto(`${origin}/admin/inscripciones/${IDS[0]}`);
+  await page.getByText('Herramientas avanzadas y seguimiento').click();
   await expect(page.getByRole('heading', { name: 'Confirmación manual de plaza' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Acuse documental' })).toBeVisible();
   await page.getByLabel(/Confirmo explícitamente que esta plaza fue aceptada/).check();
@@ -161,6 +164,7 @@ test('uncertain provider outcome shows explicit duplicate-risk acknowledgement b
   providerMode = 'network';
   await page.setViewportSize({ width: 390, height: 1000 });
   await login(page);
+  await page.getByRole('link', { name: 'Herramientas' }).click();
   await page.getByLabel('Seleccionar inscripción 2').check();
   await page.getByLabel('Número argentino de destino').fill('011 15-2345-6798');
   await page.getByLabel(/Revisé la cantidad y el destino/).check();

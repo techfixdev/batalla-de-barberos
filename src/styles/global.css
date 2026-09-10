@@ -559,3 +559,39 @@ h1, h2, h3 { margin-block: 0; font-family: var(--display); font-weight: 400; lin
 .admin-export__actions button { min-height: 44px; padding: .7rem 1rem; border: 1px solid var(--gold); color: var(--ink); background: var(--gold-bright); font-weight: 800; cursor: pointer; }
 .admin-export__actions button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 650px) { .admin-export__actions { display: grid; }.admin-export__actions button { width: 100%; } }
+
+/* Direct admin workflow: registrations first, tools and lifecycle controls second. */
+.admin-header__actions, .admin-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.admin-navigation a { display: inline-flex; min-height: 44px; align-items: center; padding: .55rem .75rem; color: var(--ivory); border: 1px solid var(--line); font-weight: 700; text-decoration: none; }
+.admin-navigation a[aria-current='page'] { color: var(--ink); border-color: var(--gold-bright); background: var(--gold-bright); }
+.admin-list:not(.admin-list--tools) .admin-table-wrap th:nth-child(1) { width: 26%; }
+.admin-list:not(.admin-list--tools) .admin-table-wrap th:nth-child(2) { width: 27%; }
+.admin-list:not(.admin-list--tools) .admin-table-wrap th:nth-child(3) { width: 35%; }
+.admin-list:not(.admin-list--tools) .admin-table-wrap th:nth-child(4) { width: 12%; }
+.admin-primary-action { padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--gold); background: var(--ink-raised); }
+.admin-response-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.admin-response-form label { display: grid; min-width: 0; gap: .4rem; color: var(--ivory-soft); font-weight: 700; }
+.admin-response-form label span { color: var(--muted); font-weight: 400; }
+.admin-response-form input, .admin-response-form select, .admin-response-form button, .admin-whatsapp-link { width: 100%; min-height: 44px; padding: .65rem .75rem; }
+.admin-response-form input, .admin-response-form select { color: var(--ink); }
+.admin-response-form button, .admin-whatsapp-link { border: 1px solid var(--gold); color: var(--ink); background: var(--gold-bright); font-weight: 800; cursor: pointer; }
+.admin-response-form button { grid-column: 1 / -1; }
+.admin-whatsapp-link { display: inline-flex; width: fit-content; max-width: 100%; align-items: center; text-decoration: none; overflow-wrap: anywhere; }
+.admin-message--success { border-color: #67b86d; }
+.admin-advanced { border: 1px solid var(--line); background: rgba(10,11,11,.5); }
+.admin-advanced > summary { min-height: 44px; padding: 1rem; color: var(--gold-bright); font-weight: 800; cursor: pointer; }
+.admin-advanced__content { display: grid; gap: 2rem; padding: 0 1rem 1rem; }
+
+@media (max-width: 760px) {
+  .admin-header { align-items: flex-start; }
+  .admin-header__actions { justify-content: flex-end; }
+  .admin-navigation { width: 100%; justify-content: flex-end; }
+  .admin-response-form { grid-template-columns: 1fr; }
+  .admin-response-form button { grid-column: auto; }
+}
+@media (max-width: 480px) {
+  .admin-header { display: grid; }
+  .admin-header__actions, .admin-navigation { display: grid; width: 100%; }
+  .admin-navigation { grid-template-columns: 1fr 1fr; }
+  .admin-navigation a, .admin-logout { justify-content: center; text-align: center; }
+}

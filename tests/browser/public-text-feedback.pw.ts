@@ -115,17 +115,29 @@ test.describe('non-mouse pointer feedback', () => {
     await sendTouch(session, 'touchEnd');
   });
 
-  test('targets consent label copy and signup-aside spans without selecting their containers', async ({ page }) => {
+  test('targets terms consent copy and signup-aside spans without selecting their containers', async ({ page }) => {
     await page.goto(`${appOrigin}/`);
-    const consent = page.locator('.consent label');
-    await consent.scrollIntoViewIfNeeded();
-    let point = await directTextPoint(consent);
+    await page.getByLabel('Nombre y apellido').fill('Ada Lovelace');
+    await page.getByLabel('Correo electrónico').fill('ada@example.com');
+    await page.getByLabel('Teléfono').fill('+54 11 5555 1234');
+    await page.getByLabel('Experiencia').selectOption('profesional');
+    await page.getByRole('button', { name: 'Enviar inscripción' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Bases y categorías' });
+    await expect(dialog).toBeVisible();
+    const consentLabel = dialog.locator('.terms-dialog__consent');
+    const consentCopy = consentLabel.getByText('Acepto las bases', { exact: true });
+    await consentCopy.scrollIntoViewIfNeeded();
+    let point = await directTextPoint(consentCopy);
 
     let session = await startTouch(page, point);
-    await expect(consent).toHaveAttribute('data-public-press', '');
-    await expect(page.locator('.consent')).not.toHaveAttribute('data-public-press');
-    await expect(consent.getByRole('link').first()).not.toHaveAttribute('data-public-press');
+    await expect(consentLabel).toHaveAttribute('data-public-press', '');
+    await expect(consentCopy).not.toHaveAttribute('data-public-press');
+    await expect(dialog.locator('.terms-dialog__footer')).not.toHaveAttribute('data-public-press');
     await sendTouch(session, 'touchEnd');
+
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialog).not.toBeVisible();
 
     const asideText = page.locator('.signup-aside > span').first();
     await asideText.scrollIntoViewIfNeeded();

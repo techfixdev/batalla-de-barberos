@@ -69,6 +69,8 @@ test.afterAll(async () => {
 test('permanently deletes only two selected disposable records through the authenticated UI', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await login(page);
+  await page.getByRole('link', { name: 'Herramientas' }).click();
+  await expect(page).toHaveURL(`${origin}/admin?tools=1`);
   const numberRows = (await client.execute({ sql: `SELECT registration_id, number FROM registration_numbers
     WHERE registration_id IN (?, ?, ?)`, args: [...DELETE_IDS, REMAINING_ID] })).rows;
   const numbers = new Map(numberRows.map((row) => [String(row.registration_id), Number(row.number)]));

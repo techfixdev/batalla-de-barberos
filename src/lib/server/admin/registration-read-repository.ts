@@ -1,10 +1,11 @@
 import type { Client } from '@libsql/client';
 
+import { EXPERIENCE_OPTIONS, type Experience } from '../../barber-signups';
 import { PARTICIPANT_RESPONSE_STATES, RECEIPT_STATUSES, REVIEW_STATES, type ParticipantResponseState, type ReceiptStatus, type ReviewState } from '../registrations/domain';
 import { SAFE_ERROR_CODES, type SafeErrorCode } from '../notifications/contracts';
 
 const PAGE_SIZE = 50;
-const AUDIT_ACTIONS = ['review_state_changed', 'participant_response_changed'] as const;
+const AUDIT_ACTIONS = ['review_state_changed', 'participant_response_changed', 'registration_responses_updated'] as const;
 
 export type RegistrationListFilters = Readonly<{ reviewState?: ReviewState; participantResponseState?: ParticipantResponseState; receiptStatus?: ReceiptStatus; attention?: boolean }>;
 export type RegistrationListInput = Readonly<{ cursor?: string; reviewState?: string; participantResponseState?: string; receiptStatus?: string; attention?: string }>;
@@ -18,7 +19,7 @@ type Cursor = Readonly<{ createdAt: string; id: string }>;
 type Row = Record<string, unknown>;
 
 export type RegistrationReadRecord = Readonly<{
-  id: string; registrationNumber: number; fullName: string; email: string; phoneE164: string | null; createdAt: string; termsVersion: string | null;
+  id: string; registrationNumber: number; fullName: string; email: string; phone: string; phoneE164: string | null; barbershop: string; experience: Experience; createdAt: string; termsVersion: string | null;
   reviewState: ReviewState; participantResponseState: ParticipantResponseState; receiptRequired: boolean; stateVersion: number;
   receipt: Readonly<{ id: string; termsVersion: string; status: ReceiptStatus; attemptCount: number; mediaUrl: string; mediaFilename: string;
     mediaMimeType: 'application/pdf'; lastErrorCode: SafeErrorCode | null; lastErrorMessage: string | null; lastAttemptAt: string | null; sentAt: string | null; leaseExpiresAt: string | null;
@@ -82,13 +83,15 @@ function diagnostic(value: unknown): Readonly<{ code: SafeErrorCode | null; mess
 }
 
 function auditValue(action: typeof AUDIT_ACTIONS[number], value: unknown): string | null {
+  if (action === 'registration_responses_updated') return null;
   const values = action === 'review_state_changed' ? REVIEW_STATES : PARTICIPANT_RESPONSE_STATES;
   return typeof value === 'string' && (values as readonly string[]).includes(value) ? value : null;
 }
 
 function record(row: Row | undefined): RegistrationReadRecord | null {
   if (!row || typeof row.id !== 'string' || !Number.isSafeInteger(Number(row.registration_number)) || Number(row.registration_number) < 1
-    || typeof row.full_name !== 'string' || typeof row.email !== 'string' || typeof row.created_at !== 'string'
+    || typeof row.full_name !== 'string' || typeof row.email !== 'string' || typeof row.phone !== 'string' || typeof row.created_at !== 'string'
+    || typeof row.experience !== 'string' || !EXPERIENCE_OPTIONS.includes(row.experience as Experience)
     || !inEnum(typeof row.review_state === 'string' ? row.review_state : undefined, REVIEW_STATES)
     || !inEnum(typeof row.participant_response_state === 'string' ? row.participant_response_state : undefined, PARTICIPANT_RESPONSE_STATES)) return null;
   const reviewState = row.review_state as ReviewState;
@@ -103,12 +106,13 @@ function record(row: Row | undefined): RegistrationReadRecord | null {
       lastAttemptAt: typeof row.last_attempt_at === 'string' ? row.last_attempt_at : null, sentAt: typeof row.sent_at === 'string' ? row.sent_at : null,
       leaseExpiresAt: typeof row.lease_expires_at === 'string' ? row.lease_expires_at : null, attempts: [] } : null;
   return { id: row.id, registrationNumber: Number(row.registration_number), fullName: row.full_name, email: row.email,
-    phoneE164: typeof row.phone_e164 === 'string' ? row.phone_e164 : null,
+    phone: row.phone, phoneE164: typeof row.phone_e164 === 'string' ? row.phone_e164 : null,
+    barbershop: typeof row.barbershop === 'string' ? row.barbershop : '', experience: row.experience as Experience,
     createdAt: row.created_at, termsVersion: typeof row.terms_version === 'string' ? row.terms_version : null, reviewState,
     participantResponseState, receiptRequired: row.receipt_required === 1, stateVersion: Number(row.state_version), receipt };
 }
 
-const projection = `SELECT b.id, rn.number AS registration_number, b.full_name, b.email, b.phone_e164, b.created_at, b.terms_version, b.review_state,
+const projection = `SELECT b.id, rn.number AS registration_number, b.full_name, b.email, b.phone, b.phone_e164, b.barbershop, b.experience, b.created_at, b.terms_version, b.review_state,
   b.participant_response_state, b.receipt_required, b.state_version, n.id AS receipt_id, n.terms_version AS receipt_terms_version,
   n.status AS receipt_status, n.attempt_count, n.media_url, n.media_filename, n.media_mime_type, n.last_error_code,
   n.last_error_message, n.last_attempt_at, n.sent_at, n.lease_expires_at FROM barber_signups b
@@ -169,7 +173,7 @@ export function createRegistrationReadRepository(database: Client): Registration
         value.receipt ? database.execute({ sql: `SELECT trigger, outcome, started_at, completed_at, error_code, error_message FROM receipt_notification_attempts
           WHERE notification_id = ? ORDER BY attempt_no DESC`, args: [value.receipt.id] }) : Promise.resolve({ rows: [] }),
         database.execute({ sql: `SELECT action, from_value, to_value, created_at FROM admin_audit_events WHERE registration_id = ?
-          AND action IN ('review_state_changed', 'participant_response_changed') ORDER BY created_at DESC`, args: [id] }),
+          AND action IN ('review_state_changed', 'participant_response_changed', 'registration_responses_updated') ORDER BY created_at DESC`, args: [id] }),
       ]);
       const attempts = attemptRows.rows.map((row) => row as Row).filter((row) => typeof row.trigger === 'string' && ['automatic', 'admin_retry', 'admin_reconcile'].includes(row.trigger)
         && typeof row.outcome === 'string' && typeof row.started_at === 'string').map((row) => {

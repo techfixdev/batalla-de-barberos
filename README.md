@@ -74,11 +74,13 @@ Authenticated Excel and PDF exports load their fonts and emblem directly from th
 | `OFL.txt` | `https://raw.githubusercontent.com/notofonts/noto-fonts/c971829a87e7920f960e7277c3dafd9bedd3c601/LICENSE` | `0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb` |
 | Entre Cortes emblem (existing original) | `content/draft-terms/branding/entre-cortes-emblem.jpg` | `c321de2f807c4c205a62e5cc3eed9ac103eda08756f9db21dbca754a4f413bd6` |
 
-## Envíos manuales administrativos
+## Admin registration workflow
 
-El panel mantiene tres acciones separadas: el acuse documental existente, la confirmación manual de plaza para una inscripción con revisión `selected`, y el listado PDF para la organización (filas seleccionadas o filtros actuales, máximo 1000). Los destinatarios no se guardan en claro: el listado exige ingresar un número móvil argentino en cada envío y los reintentos verifican la misma huella HMAC.
+`/admin` is the direct registration queue. Open a registration to edit its five submitted answers or launch a prefilled `wa.me` receipt acknowledgement. The link confirms only that the registration was received: opening it does not send from the server, mutate lifecycle state, or record delivery. Response edits use the existing authenticated CSRF form boundary, optimistic `state_version` concurrency, normalized Argentine mobile storage, and a PII-free audit event.
 
-La capacidad privada continúa **deshabilitada hasta una validación humana controlada**. Mientras esté bloqueada, la interfaz explica el motivo antes de crear jobs o contactar al proveedor; las exportaciones, eliminaciones, estados y acuses existentes siguen operativos. “Aceptado por el proveedor” no significa entregado, leído ni respondido.
+`/admin?tools=1` keeps filters, exports, organization PDF sending, recent sends, row selection, and permanent deletion available as secondary tools. Registration detail keeps state operations, receipt recovery, provider-backed place confirmation, and audit history under the advanced section.
+
+Private provider dispatch remains **disabled until controlled human validation**. While blocked, the UI explains the reason before creating jobs or contacting the provider; exports, deletion, lifecycle states, and existing receipts remain operational. “Accepted by the provider” does not mean delivered, read, or answered.
 
 ## Accessibility
 

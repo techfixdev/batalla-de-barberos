@@ -114,11 +114,13 @@ test('login presents the existing event identity with accessible responsive cont
 test('authenticated native detail form and logout keep same-origin requests usable', async ({ page }) => {
   await login(page);
   await page.goto(`${appOrigin}/admin/inscripciones/browser-registration`);
+  await page.getByText('Herramientas avanzadas y seguimiento', { exact: true }).click();
 
   const updateRequest = page.waitForRequest((request) => request.url().endsWith('/review-state') && request.method() === 'POST');
   await page.getByLabel('Nuevo estado de revisión').selectOption('under_review');
   await page.getByRole('button', { name: 'Guardar revisión' }).click();
   expect((await updateRequest).headers()['origin']).toBe(appOrigin);
+  await page.getByText('Herramientas avanzadas y seguimiento', { exact: true }).click();
   await expect(page.getByText('En revisión', { exact: true }).first()).toBeVisible();
 
   const logoutRequest = page.waitForRequest((request) => request.url() === `${appOrigin}/api/admin/logout`);

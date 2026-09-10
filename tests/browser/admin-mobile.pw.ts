@@ -82,6 +82,7 @@ test.afterAll(async () => {
 
 test('presents Spanish filters with English storage values and an honest empty result', async ({ page }) => {
   await login(page);
+  await page.getByRole('link', { name: 'Herramientas' }).click();
   const expectedOptions = {
     review: [['', 'Todas'], ['received', 'Recibida'], ['under_review', 'En revisión'], ['selected', 'Seleccionada'], ['rejected', 'No seleccionada'], ['withdrawn', 'Retirada']],
     participant: [['', 'Todas'], ['not_requested', 'No solicitada'], ['pending', 'Pendiente'], ['confirmed', 'Confirmada'], ['declined', 'Rechazada']],
@@ -108,6 +109,7 @@ for (const width of [320, 360, 390, 650]) {
     await expectMinimumTouchHeight(page.locator('.admin-filters select, .admin-filters button, .admin-filters a, .admin-registration-card__detail'));
     await expectNoHorizontalOverflow(page, width);
 
+    await page.getByRole('link', { name: 'Herramientas' }).click();
     await page.getByLabel('Revisión').focus();
     await page.keyboard.press('Tab');
     await expect(page.getByLabel('Respuesta')).toBeFocused();
@@ -115,9 +117,13 @@ for (const width of [320, 360, 390, 650]) {
     await page.getByRole('link', { name: 'Ver inscripción' }).click();
     await expect(page).toHaveURL(`${origin}/admin/inscripciones/${encodeURIComponent(LONG_ID)}`);
     await expect(page.getByRole('heading', { level: 1, name: LONG_NAME })).toBeVisible();
-    await expect(page.getByRole('link', { name: LONG_EMAIL })).toHaveAttribute('href', `mailto:${LONG_EMAIL}`);
-    await expect(page.getByRole('link', { name: '+5491199998888' })).toHaveAttribute('href', 'tel:+5491199998888');
-    await expectMinimumTouchHeight(page.locator('.admin-detail a, .admin-detail button, .admin-detail select'));
+    await expect(page.getByRole('heading', { name: 'Datos enviados' })).toBeVisible();
+    await expect(page.getByLabel('Nombre completo')).toHaveValue(LONG_NAME);
+    await expect(page.getByLabel('Correo electrónico')).toHaveValue(LONG_EMAIL);
+    await expect(page.getByLabel('Teléfono argentino')).toHaveValue('+54 9 11 9999-8888');
+    await expect(page.getByLabel('Experiencia')).toHaveValue('educador');
+    await expect(page.getByRole('link', { name: `Abrir mensaje para ${LONG_NAME}` })).toHaveAttribute('href', /wa\.me\/5491199998888\?text=Hola%20/);
+    await expectMinimumTouchHeight(page.locator('.admin-detail a:visible, .admin-detail button:visible, .admin-detail select:visible, .admin-detail input:visible'));
     await expectNoHorizontalOverflow(page, width);
   });
 }
@@ -129,4 +135,27 @@ test('preserves the semantic desktop table without overflow', async ({ page }) =
   await expect(page.locator('thead')).toBeVisible();
   await expect(page.locator('tbody tr')).toHaveCount(1);
   await expectNoHorizontalOverflow(page, 1440);
+});
+
+test('edits all submitted answers and refreshes the manual receipt message without changing lifecycle state', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await login(page);
+  await page.getByRole('link', { name: 'Ver inscripción' }).click();
+  await page.getByLabel('Nombre completo').fill('Alejandra Editada');
+  await page.getByLabel('Correo electrónico').fill('alejandra.editada@example.test');
+  await page.getByLabel('Teléfono argentino').fill('011 15-4444-5555');
+  await page.getByLabel('Barbería').fill('Barbería Sur');
+  await page.getByLabel('Experiencia').selectOption('profesional');
+  await page.getByRole('button', { name: 'Guardar datos enviados' }).click();
+
+  await expect(page).toHaveURL(`${origin}/admin/inscripciones/${encodeURIComponent(LONG_ID)}?updated=1`);
+  await expect(page.getByRole('status')).toHaveText('Los datos enviados se actualizaron.');
+  await expect(page.getByRole('link', { name: 'Abrir mensaje para Alejandra Editada' })).toHaveAttribute('href', /wa\.me\/5491144445555/);
+  expect((await client.execute({ sql: `SELECT full_name, email, phone, phone_e164, barbershop, experience, review_state,
+    participant_response_state, state_version FROM barber_signups WHERE id = ?`, args: [LONG_ID] })).rows).toEqual([{
+      full_name: 'Alejandra Editada', email: 'alejandra.editada@example.test', phone: '011 15-4444-5555', phone_e164: '+5491144445555',
+      barbershop: 'Barbería Sur', experience: 'profesional', review_state: 'under_review', participant_response_state: 'pending', state_version: 1,
+    }]);
+  expect((await client.execute({ sql: `SELECT action, from_value, to_value FROM admin_audit_events WHERE registration_id = ?`, args: [LONG_ID] })).rows)
+    .toEqual([{ action: 'registration_responses_updated', from_value: null, to_value: null }]);
 });

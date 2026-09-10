@@ -8,10 +8,11 @@ import { createRegistrationReadRepository } from '../../lib/server/admin/registr
 import { createAdminMessageRuntime } from '../../lib/server/admin/admin-message-runtime';
 import type { AdminMessageJobSummary } from '../../lib/server/admin/admin-message-contracts';
 
-const allowed = new Set(['review', 'participant', 'receipt', 'attention', 'cursor', 'deleted']);
+const allowed = new Set(['review', 'participant', 'receipt', 'attention', 'cursor', 'deleted', 'tools']);
 const query = Astro.url.searchParams;
 const invalidQuery = [...query].some(([key]) => !allowed.has(key)) || [...allowed].some((key) => query.getAll(key).length > 1)
-  || (query.has('deleted') && query.get('deleted') !== '1');
+  || (query.has('deleted') && query.get('deleted') !== '1') || (query.has('tools') && query.get('tools') !== '1');
+const tools = query.get('tools') === '1';
 const deletionCompleted = query.get('deleted') === '1';
 const operationId = crypto.randomUUID();
 const organizationOperationNonce = crypto.randomUUID();
@@ -46,23 +47,27 @@ function href(cursor?: string | null) {
   if (input.receiptStatus) values.set('receipt', input.receiptStatus);
   if (input.attention) values.set('attention', input.attention);
   if (cursor) values.set('cursor', cursor);
+  if (tools) values.set('tools', '1');
   return values.size ? `/admin?${values}` : '/admin';
 }
 ---
 
 <AdminLayout csrfToken={Astro.locals.adminCsrfToken}>
-  <section class="admin-list" aria-labelledby="admin-title">
+  <section class:list={['admin-list', { 'admin-list--tools': tools }]} aria-labelledby="admin-title">
     <p class="eyebrow">Panel protegido</p>
-    <h1 id="admin-title">Inscripciones recibidas</h1>
+    <h1 id="admin-title">{tools ? 'Herramientas administrativas' : 'Inscripciones recibidas'}</h1>
+    {tools && <p class="admin-note">Usá filtros, exportaciones, envíos avanzados o eliminación permanente. Las inscripciones siguen visibles debajo.</p>}
     {errorStatus ? <p class="admin-message" role="alert">{errorStatus === 400 ? 'Solicitud no válida.' : 'Servicio no disponible.'}</p> : <>
       {deletionCompleted && <p class="admin-message" role="status">La eliminación permanente se completó.</p>}
       <p class="admin-count">{count} inscripciones recibidas</p>
+      {tools && <>
       <form class="admin-filters" method="get" action="/admin">
+        <input type="hidden" name="tools" value="1" />
         <label>Revisión<select name="review"><option value="">Todas</option>{REVIEW_STATE_OPTIONS.map(([value, label]) => <option value={value} selected={input.reviewState === value}>{label}</option>)}</select></label>
         <label>Respuesta<select name="participant"><option value="">Todas</option>{PARTICIPANT_RESPONSE_OPTIONS.map(([value, label]) => <option value={value} selected={input.participantResponseState === value}>{label}</option>)}</select></label>
         <label>Acuse<select name="receipt"><option value="">Todos</option>{RECEIPT_STATUS_OPTIONS.map(([value, label]) => <option value={value} selected={input.receiptStatus === value}>{label}</option>)}</select></label>
         <label>Atención<select name="attention"><option value="">Todas</option><option value="1" selected={input.attention === '1'}>Requiere atención</option></select></label>
-        <button type="submit">Filtrar</button><a href="/admin">Restablecer filtros</a>
+        <button type="submit">Filtrar</button><a href="/admin?tools=1">Restablecer filtros</a>
       </form>
       {count > 0 && <form id="registration-export-form" class="admin-export" action="/api/admin/registrations/export" method="post">
         <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} /><input type="hidden" name="scope" value="filtered" />
@@ -88,24 +93,25 @@ function href(cursor?: string | null) {
          </form>}
        </section>}
        {recentJobs.length > 0 && <section aria-labelledby="recent-messages-title"><h2 id="recent-messages-title">Envíos manuales recientes</h2><ul class="admin-history">{recentJobs.map((job) => <li><a href={`/admin/envios/${encodeURIComponent(job.id)}`}>{job.kind === 'confirmation' ? 'Confirmación' : 'Listado'} · {job.registrationNumbers.map((number) => `N.º ${number}`).join(', ')}</a> — {job.state}</li>)}</ul></section>}
+       </>}
        {count === 0 ? <p class="admin-empty">{hasFilters ? 'No hay inscripciones con estos filtros.' : 'Todavía no hay inscripciones recibidas'}</p> : registrations.length === 0 ? <p class="admin-empty">No hay inscripciones con estos filtros.</p> : <form id="registration-deletion-form" class="admin-deletion" action="/api/admin/registrations/delete" method="post">
         <input type="hidden" name="csrf" value={Astro.locals.adminCsrfToken} />
         <input type="hidden" name="operationId" value={operationId} />
-        <div class="admin-selection-bar">
+        {tools && <div class="admin-selection-bar">
           <label><input id="select-current-page" type="checkbox" /> Seleccionar las {registrations.length} de esta página</label>
           <strong aria-live="polite"><span id="selected-count">0</span> seleccionadas</strong>
           <button id="open-delete-confirmation" type="button" disabled>Eliminar seleccionadas</button>
-        </div>
-        <div class="admin-table-wrap"><table><thead><tr><th><span class="sr-only">Seleccionar</span></th><th>Inscripción</th><th>Contacto</th><th>Estados</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody>
-          {registrations.map((registration) => { const view = presentRegistration(registration); return <tr class="admin-registration-card"><td data-label="Seleccionar"><input class="registration-selection" type="checkbox" name="registrationId" value={registration.id} aria-label={`Seleccionar inscripción ${registration.registrationNumber}`} /></td><td data-label="Inscripción"><span class="admin-card-value"><strong>{registration.fullName}</strong><br /><small>Inscripción N.º {registration.registrationNumber}</small></span></td><td data-label="Contacto"><span class="admin-card-value"><a href={`mailto:${registration.email}`}>{registration.email}</a><br />{registration.phoneE164 ? <a href={`tel:${registration.phoneE164}`}>{view.phone}</a> : <span>{view.phone}</span>}</span></td><td data-label="Estados"><RegistrationStates registration={view} /></td><td class="admin-registration-card__action"><a class="admin-registration-card__detail" href={`/admin/inscripciones/${encodeURIComponent(registration.id)}`}>Ver inscripción</a></td></tr>; })}
+        </div>}
+        <div class="admin-table-wrap"><table><thead><tr>{tools && <th><span class="sr-only">Seleccionar</span></th>}<th>Inscripción</th><th>Contacto</th><th>Estados</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody>
+          {registrations.map((registration) => { const view = presentRegistration(registration); return <tr class="admin-registration-card">{tools && <td data-label="Seleccionar"><input class="registration-selection" type="checkbox" name="registrationId" value={registration.id} aria-label={`Seleccionar inscripción ${registration.registrationNumber}`} /></td>}<td data-label="Inscripción"><span class="admin-card-value"><strong>{registration.fullName}</strong><br /><small>Inscripción N.º {registration.registrationNumber}</small></span></td><td data-label="Contacto"><span class="admin-card-value"><a href={`mailto:${registration.email}`}>{registration.email}</a><br />{registration.phoneE164 ? <a href={`tel:${registration.phoneE164}`}>{view.phone}</a> : <span>{view.phone}</span>}</span></td><td data-label="Estados"><RegistrationStates registration={view} /></td><td class="admin-registration-card__action"><a class="admin-registration-card__detail" href={`/admin/inscripciones/${encodeURIComponent(registration.id)}`}>Ver inscripción</a></td></tr>; })}
         </tbody></table></div>
-        <dialog id="delete-confirmation" aria-labelledby="delete-title">
+        {tools && <dialog id="delete-confirmation" aria-labelledby="delete-title">
           <h2 id="delete-title">Eliminar permanentemente</h2>
           <p>Esta acción es irreversible. Si algún acuse o envío manual está en curso o incierto, primero hay que conciliarlo y se bloqueará toda la selección. Eliminar datos locales no borra los WhatsApps ya entregados.</p>
           <label>Escribí <strong id="required-confirmation">ELIMINAR 0</strong><input id="deletion-confirmation" name="confirmation" autocomplete="off" /></label>
           <label><input id="irreversible-ack" type="checkbox" name="irreversible" value="1" /> Entiendo que los registros no se pueden recuperar.</label>
           <div class="admin-dialog-actions"><button id="cancel-delete" type="button">Cancelar</button><button id="confirm-delete" type="submit" disabled>Eliminar permanentemente</button></div>
-        </dialog>
+        </dialog>}
       </form>}
       <nav class="admin-pagination" aria-label="Paginación de inscripciones">
         {input.cursor && <a href={href()}>Volver a la primera página</a>}
